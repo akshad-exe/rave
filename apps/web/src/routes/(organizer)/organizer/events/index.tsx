@@ -41,7 +41,7 @@ export const Route = createFileRoute("/(organizer)/organizer/events/")({
 });
 
 function OrganizerEventsComponent() {
-  const { data: myEvents, isLoading } = useQuery(
+  const { data: events, status: eventsStatus } = useQuery(
     orpc.events.list.queryOptions({ limit: 50 })
   );
 
@@ -62,62 +62,80 @@ function OrganizerEventsComponent() {
         </Link>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <EventRowSkeleton key={i} />
-          ))}
-        </div>
-      ) : myEvents && myEvents.events.length > 0 ? (
-        <div className="space-y-4">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-border border-b">
-                  <th className="p-4 text-left font-medium text-muted-foreground">
-                    Event
-                  </th>
-                  <th className="hidden p-4 text-left font-medium text-muted-foreground md:table-cell">
-                    Status
-                  </th>
-                  <th className="hidden p-4 text-left font-medium text-muted-foreground md:table-cell">
-                    Dates
-                  </th>
-                  <th className="hidden p-4 text-left font-medium text-muted-foreground lg:table-cell">
-                    Submissions
-                  </th>
-                  <th className="p-4 text-right font-medium text-muted-foreground">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {myEvents.events.map((event) => (
-                  <EventRow event={event} key={event.id} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia>
-              <CalendarIcon className="size-6" />
-            </EmptyMedia>
-            <EmptyTitle>No events yet</EmptyTitle>
-            <EmptyDescription>
-              Create your first hackathon to get started
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyAction>
-            <Link to="/organizer/events/new">
-              <Button>Create Event</Button>
-            </Link>
-          </EmptyAction>
-        </Empty>
-      )}
+      {renderEventsBody({ events, isPending: eventsStatus === "pending" })}
     </div>
+  );
+}
+
+function renderEventsBody({
+  events,
+  isPending,
+}: {
+  events: { events: unknown[] } | undefined;
+  isPending: boolean;
+}) {
+  if (isPending) {
+    return (
+      <div className="space-y-4">
+        {(["a", "b", "c", "d", "e"] as const).map((slot) => (
+          <EventRowSkeleton key={slot} />
+        ))}
+      </div>
+    );
+  }
+
+  if (events && events.events.length > 0) {
+    return (
+      <div className="space-y-4">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-border border-b">
+                <th className="p-4 text-left font-medium text-muted-foreground">
+                  Event
+                </th>
+                <th className="hidden p-4 text-left font-medium text-muted-foreground md:table-cell">
+                  Status
+                </th>
+                <th className="hidden p-4 text-left font-medium text-muted-foreground md:table-cell">
+                  Dates
+                </th>
+                <th className="hidden p-4 text-left font-medium text-muted-foreground lg:table-cell">
+                  Submissions
+                </th>
+                <th className="p-4 text-right font-medium text-muted-foreground">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {events.events.map((event) => (
+                <EventRow event={event} key={event.id} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia>
+          <CalendarIcon className="size-6" />
+        </EmptyMedia>
+        <EmptyTitle>No events yet</EmptyTitle>
+        <EmptyDescription>
+          Create your first hackathon to get started
+        </EmptyDescription>
+      </EmptyHeader>
+      <EmptyAction>
+        <Link to="/organizer/events/new">
+          <Button>Create Event</Button>
+        </Link>
+      </EmptyAction>
+    </Empty>
   );
 }
 
@@ -153,7 +171,7 @@ function EventRow({
       </td>
       <td className="hidden p-4 text-muted-foreground text-sm md:table-cell">
         {event.startDate ? formatDate(event.startDate) : "TBD"}
-        {event.endDate && ` – ${formatDate(event.endDate)}`}
+        {event.endDate ? ` – ${formatDate(event.endDate)}` : null}
       </td>
       <td className="hidden p-4 text-muted-foreground text-sm lg:table-cell">
         {event.submissionDeadline

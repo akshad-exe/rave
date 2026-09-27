@@ -61,8 +61,10 @@ function Alert({
     >
       <Icon aria-hidden="true" className="text-current" />
       <div className="flex-1">
-        {title && <h5 className="font-medium text-sm">{title}</h5>}
-        {description && <p className="text-sm opacity-90">{description}</p>}
+        {title ? <h5 className="font-medium text-sm">{title}</h5> : null}
+        {description ? (
+          <p className="text-sm opacity-90">{description}</p>
+        ) : null}
         {children}
       </div>
     </div>

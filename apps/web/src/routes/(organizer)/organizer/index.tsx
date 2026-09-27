@@ -27,11 +27,8 @@ export const Route = createFileRoute("/(organizer)/organizer/")({
 });
 
 function OrganizerDashboardComponent() {
-  const { data: myEvents, isLoading: eventsLoading } = useQuery(
+  const { data: myEvents, status: eventsStatus } = useQuery(
     orpc.events.list.queryOptions({ limit: 10 })
-  );
-  const { data: analytics } = useQuery(
-    orpc.exports.rawScores.queryOptions({ eventId: "" })
   );
 
   const totalEvents = myEvents?.events?.length ?? 0;
@@ -135,32 +132,10 @@ function OrganizerDashboardComponent() {
             </Button>
           </Link>
         </div>
-        {eventsLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <EventCardSkeleton key={i} />
-            ))}
-          </div>
-        ) : myEvents && myEvents.events.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {myEvents.events.map((event) => (
-              <EventCard event={event} key={event.id} />
-            ))}
-          </div>
-        ) : (
-          <Card className="p-8 text-center" variant="default">
-            <CalendarIcon className="mx-auto mb-4 size-12 text-muted-foreground/50" />
-            <h3 className="font-semibold text-foreground text-lg">
-              No events yet
-            </h3>
-            <p className="mt-2 text-muted-foreground">
-              Create your first hackathon to get started
-            </p>
-            <Link className="mt-4 inline-block" to="/organizer/events/new">
-              <Button>Create Event</Button>
-            </Link>
-          </Card>
-        )}
+        {renderOrganizerEvents({
+          events: myEvents,
+          isPending: eventsStatus === "pending",
+        })}
       </section>
     </div>
   );
@@ -195,6 +170,47 @@ function StatCard({
   );
 }
 
+function renderOrganizerEvents({
+  events,
+  isPending,
+}: {
+  events: { events: unknown[] } | undefined;
+  isPending: boolean;
+}) {
+  if (isPending) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {(["a", "b", "c"] as const).map((slot) => (
+          <EventCardSkeleton key={slot} />
+        ))}
+      </div>
+    );
+  }
+
+  if (events && events.events.length > 0) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {events.events.map((event) => (
+          <EventCard event={event} key={event.id} />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <Card className="p-8 text-center" variant="default">
+      <CalendarIcon className="mx-auto mb-4 size-12 text-muted-foreground/50" />
+      <h3 className="font-semibold text-foreground text-lg">No events yet</h3>
+      <p className="mt-2 text-muted-foreground">
+        Create your first hackathon to get started
+      </p>
+      <Link className="mt-4 inline-block" to="/organizer/events/new">
+        <Button>Create Event</Button>
+      </Link>
+    </Card>
+  );
+}
+
 function EventCard({
   event,
 }: {
@@ -213,12 +229,14 @@ function EventCard({
   return (
     <Link className="block" to={`/organizer/events/${event.slug}`}>
       <Card className="h-full" variant="interactive">
-        {event.coverImageUrl && (
+        {event.coverImageUrl ? (
           <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-t-lg">
             <img
               alt=""
               className="h-full w-full object-cover"
+              height={360}
               src={event.coverImageUrl}
+              width={640}
             />
             <div className="absolute top-2 right-2">
               <Badge className="text-xs" variant={statusConfig.variant}>
@@ -226,26 +244,26 @@ function EventCard({
               </Badge>
             </div>
           </div>
-        )}
+        ) : null}
         <div className="space-y-2">
           <h3 className="line-clamp-1 font-semibold text-foreground">
             {event.name}
           </h3>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            {event.startDate && (
+            {event.startDate ? (
               <>
                 <CalendarIcon className="size-3.5" />
                 <span>{formatDate(event.startDate)}</span>
               </>
-            )}
-            {event.submissionDeadline && (
+            ) : null}
+            {event.submissionDeadline ? (
               <>
                 <ClockIcon className="size-3.5" />
                 <span>
                   Submits {formatRelativeTime(event.submissionDeadline)}
                 </span>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       </Card>

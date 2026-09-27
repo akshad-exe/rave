@@ -1,5 +1,15 @@
-export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+/**
+ * Drizzle returns `timestamp` columns as `Date`, while some API rows are still
+ * plain strings, so every helper here accepts either.
+ */
+export type DateLike = Date | number | string;
+
+function toDate(value: DateLike): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+export function formatDate(value: DateLike): string {
+  const date = toDate(value);
   return date.toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
@@ -7,8 +17,8 @@ export function formatDate(dateString: string): string {
   });
 }
 
-export function formatDateTime(dateString: string): string {
-  const date = new Date(dateString);
+export function formatDateTime(value: DateLike): string {
+  const date = toDate(value);
   return date.toLocaleDateString("en-US", {
     day: "numeric",
     hour: "numeric",
@@ -19,8 +29,8 @@ export function formatDateTime(dateString: string): string {
   });
 }
 
-export function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
+export function formatRelativeTime(value: DateLike): string {
+  const date = toDate(value);
   const now = new Date();
   const diff = date.getTime() - now.getTime();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));

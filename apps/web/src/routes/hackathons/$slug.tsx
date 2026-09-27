@@ -22,8 +22,12 @@ import {
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
+import type * as React from "react";
 import { formatDate, formatDateTime, getEventStatusConfig } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type EventDetail = Awaited<ReturnType<typeof client.events.getBySlug>>;
+type EventAdmin = Awaited<ReturnType<typeof client.events.getAdmin>>;
 
 export const Route = createFileRoute("/hackathons/$slug")({
   component: HackathonDetailComponent,
@@ -36,11 +40,11 @@ function HackathonDetailComponent() {
   const { slug } = useParams({ from: "/hackathons/$slug", strict: true });
   const {
     data: event,
-    isLoading,
+    status: eventStatus,
     isError,
   } = useQuery(orpc.events.getBySlug.queryOptions({ slug }));
 
-  if (isLoading) {
+  if (eventStatus === "pending") {
     return <HackathonDetailSkeleton />;
   }
 
@@ -81,34 +85,34 @@ function HackathonDetailComponent() {
               <Badge className="text-sm" variant={statusConfig.variant}>
                 {statusConfig.label}
               </Badge>
-              {event.isPublic && (
+              {event.isPublic ? (
                 <Badge className="text-xs" variant="outline">
                   Public
                 </Badge>
-              )}
+              ) : null}
             </div>
             <h1 className="font-bold font-display text-3xl text-foreground sm:text-4xl">
               {event.name}
             </h1>
-            {event.tagline && (
+            {event.tagline ? (
               <p className="mt-2 text-lg text-muted-foreground">
                 {event.tagline}
               </p>
-            )}
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-3">
-            {isRegistrationOpen && (
+            {isRegistrationOpen ? (
               <Button className="gap-2" size="lg">
                 <UsersIcon className="size-4" />
                 Register
               </Button>
-            )}
-            {isSubmissionOpen && (
+            ) : null}
+            {isSubmissionOpen ? (
               <Button className="gap-2" size="lg" variant="outline">
                 <CodeIcon className="size-4" />
                 Submit Project
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -146,15 +150,17 @@ function HackathonDetailComponent() {
       </div>
 
       {/* Cover Image */}
-      {event.coverImageUrl && (
+      {event.coverImageUrl ? (
         <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
           <img
             alt=""
             className="h-full w-full object-cover"
+            height={720}
             src={event.coverImageUrl}
+            width={1280}
           />
         </div>
-      )}
+      ) : null}
 
       {/* Tabs */}
       <Tabs className="w-full" defaultIndex={0}>
@@ -210,7 +216,7 @@ function MetaItem({
   );
 }
 
-function OverviewTab({ event }: { event: any }) {
+function OverviewTab({ event }: { event: EventDetail }) {
   return (
     <div className="space-y-8">
       <section>
@@ -228,7 +234,7 @@ function OverviewTab({ event }: { event: any }) {
         </div>
       </section>
 
-      {event.websiteUrl && (
+      {event.websiteUrl ? (
         <section>
           <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
             Links
@@ -246,112 +252,67 @@ function OverviewTab({ event }: { event: any }) {
             </Link>
           </div>
         </section>
-      )}
+      ) : null}
 
-      {event.customQuestions && event.customQuestions.length > 0 && (
+      {event.customQuestions.length > 0 ? (
         <section>
           <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
             Custom Questions
           </h2>
           <div className="space-y-3">
-            {event.customQuestions.map((q: any, i: number) => (
-              <div className="rounded-lg bg-muted/30 p-4" key={i}>
+            {event.customQuestions.map((q) => (
+              <div className="rounded-lg bg-muted/30 p-4" key={q.id}>
                 <p className="font-medium">{q.label}</p>
                 <p className="text-muted-foreground text-sm capitalize">
                   {q.type}
                 </p>
-                {q.required && (
+                {q.required ? (
                   <span className="text-error text-xs">Required</span>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
         </section>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function TimelineTab({ event }: { event: any }) {
+function TimelineTab({ event }: { event: EventDetail }) {
+  const isPast = (date: Date | null) => Boolean(date && date <= new Date());
+
   const timeline = [
     {
       label: "Registration Opens",
       date: event.registrationStartAt,
       icon: UsersIcon,
-      status:
-        event.registrationStartAt &&
-        new Date(event.registrationStartAt) <= new Date()
-          ? "past"
-          : "future",
     },
     {
       label: "Registration Closes",
       date: event.registrationEndAt,
       icon: UsersIcon,
-      status:
-        event.registrationEndAt &&
-        new Date(event.registrationEndAt) <= new Date()
-          ? "past"
-          : "future",
     },
-    {
-      label: "Event Starts",
-      date: event.startDate,
-      icon: CalendarIcon,
-      status:
-        event.startDate && new Date(event.startDate) <= new Date()
-          ? "past"
-          : "future",
-    },
+    { label: "Event Starts", date: event.startDate, icon: CalendarIcon },
     {
       label: "Submissions Open",
       date: event.submissionStartAt,
       icon: CodeIcon,
-      status:
-        event.submissionStartAt &&
-        new Date(event.submissionStartAt) <= new Date()
-          ? "past"
-          : "future",
     },
     {
       label: "Submission Deadline",
       date: event.submissionDeadline,
       icon: ClockIcon,
-      status:
-        event.submissionDeadline &&
-        new Date(event.submissionDeadline) <= new Date()
-          ? "past"
-          : "future",
     },
-    {
-      label: "Judging Starts",
-      date: event.judgingStartAt,
-      icon: ShieldIcon,
-      status:
-        event.judgingStartAt && new Date(event.judgingStartAt) <= new Date()
-          ? "past"
-          : "future",
-    },
-    {
-      label: "Judging Ends",
-      date: event.judgingEndAt,
-      icon: ShieldIcon,
-      status:
-        event.judgingEndAt && new Date(event.judgingEndAt) <= new Date()
-          ? "past"
-          : "future",
-    },
+    { label: "Judging Starts", date: event.judgingStartAt, icon: ShieldIcon },
+    { label: "Judging Ends", date: event.judgingEndAt, icon: ShieldIcon },
     {
       label: "Results Announced",
       date: event.resultsPublishedAt,
       icon: TrophyIcon,
-      status:
-        event.resultsPublishedAt &&
-        new Date(event.resultsPublishedAt) <= new Date()
-          ? "past"
-          : "future",
     },
-  ].filter((t) => t.date);
+  ]
+    .filter((t): t is typeof t & { date: Date } => Boolean(t.date))
+    .map((t) => ({ ...t, status: isPast(t.date) ? "past" : "future" }));
 
   return (
     <div className="space-y-6">
@@ -363,14 +324,14 @@ function TimelineTab({ event }: { event: any }) {
             >
               <item.icon className="size-5" />
             </div>
-            {index < timeline.length - 1 && (
+            {index < timeline.length - 1 ? (
               <div className="absolute top-10 bottom-0 left-4.5 w-0.5 bg-border" />
-            )}
+            ) : null}
           </div>
           <div className="flex-1 pt-1">
             <h3 className="font-medium text-foreground">{item.label}</h3>
             <p className="text-muted-foreground text-sm">
-              {formatDateTime(item.date!)}
+              {formatDateTime(item.date)}
             </p>
           </div>
         </div>
@@ -380,11 +341,11 @@ function TimelineTab({ event }: { event: any }) {
 }
 
 function TracksPrizesTab({ eventId }: { eventId: string }) {
-  const { data: adminData, isLoading } = useQuery(
+  const { data: adminData, status: adminStatus } = useQuery(
     orpc.events.getAdmin.queryOptions({ eventId })
   );
 
-  if (isLoading) {
+  if (adminStatus === "pending") {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-1/4" />
@@ -394,27 +355,30 @@ function TracksPrizesTab({ eventId }: { eventId: string }) {
     );
   }
 
+  const tracks = adminData?.tracks ?? [];
+  const prizes = adminData?.prizes ?? [];
+
   return (
     <div className="space-y-8">
       <section>
         <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
           Tracks
         </h2>
-        {adminData?.tracks?.length ? (
+        {tracks.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {adminData.tracks.map((track: any) => (
+            {tracks.map((track: EventAdmin["tracks"][number]) => (
               <Card className="p-4" key={track.id} variant="default">
                 <h3 className="font-semibold text-foreground">{track.name}</h3>
-                {track.description && (
+                {track.description ? (
                   <p className="mt-2 text-muted-foreground text-sm">
                     {track.description}
                   </p>
-                )}
-                {track.maxSubmissions && (
+                ) : null}
+                {track.maxSubmissions ? (
                   <p className="mt-2 text-muted-foreground text-sm">
                     Max submissions: {track.maxSubmissions}
                   </p>
-                )}
+                ) : null}
               </Card>
             ))}
           </div>
@@ -427,32 +391,32 @@ function TracksPrizesTab({ eventId }: { eventId: string }) {
         <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
           Prizes
         </h2>
-        {adminData?.prizes?.length ? (
+        {prizes.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {adminData.prizes.map((prize: any) => (
+            {prizes.map((prize: EventAdmin["prizes"][number]) => (
               <Card className="p-4" key={prize.id} variant="default">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="font-semibold text-foreground">
                       {prize.name}
                     </h3>
-                    {prize.description && (
+                    {prize.description ? (
                       <p className="mt-1 text-muted-foreground text-sm">
                         {prize.description}
                       </p>
-                    )}
-                    {prize.trackId && (
+                    ) : null}
+                    {prize.trackId ? (
                       <p className="mt-1 text-muted-foreground text-sm">
                         Track-specific prize
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="text-right">
-                    {prize.value && (
+                    {prize.value ? (
                       <div className="font-bold font-display text-2xl text-primary">
-                        {prize.value} {prize.currency || "USD"}
+                        {prize.value} {prize.currency ?? "USD"}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </Card>
@@ -466,7 +430,7 @@ function TracksPrizesTab({ eventId }: { eventId: string }) {
   );
 }
 
-function RulesTab({ event }: { event: any }) {
+function RulesTab({ event }: { event: EventDetail }) {
   return (
     <div className="prose prose-muted max-w-none space-y-6">
       <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
@@ -520,7 +484,7 @@ function RuleItem({
   );
 }
 
-function FAQTab({ event }: { event: any }) {
+function FAQTab({ event }: { event: EventDetail }) {
   const faqs = [
     {
       q: "Who can participate?",
@@ -552,10 +516,10 @@ function FAQTab({ event }: { event: any }) {
 
   return (
     <div className="space-y-4">
-      {faqs.map((faq, i) => (
+      {faqs.map((faq) => (
         <details
           className="group overflow-hidden rounded-lg bg-muted/30"
-          key={i}
+          key={faq.q}
         >
           <summary className="flex cursor-pointer list-none items-center justify-between p-4">
             <h3 className="font-medium text-foreground">{faq.q}</h3>

@@ -26,13 +26,22 @@ import {
   TrophyIcon,
   UsersIcon,
 } from "lucide-react";
-import { useState } from "react";
+import type * as React from "react";
+import { useCallback, useEffect, useState } from "react";
+
+const PAGE_SIZE = 12;
+const SKELETON_SLOTS = ["a", "b", "c", "d", "e", "f"] as const;
+
 import {
   formatDate,
   formatRelativeTime,
   getEventStatusConfig,
 } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type EventListItem = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
 
 export const Route = createFileRoute("/hackathons/")({
   component: HackathonsComponent,
@@ -44,27 +53,57 @@ function HackathonsComponent() {
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const { data, isLoading, isError } = useQuery(
+  const { data, status, isError } = useQuery(
     orpc.events.list.queryOptions({
       search: debouncedSearch || undefined,
       status: statusFilter || undefined,
       page,
-      limit: 12,
+      limit: PAGE_SIZE,
     })
   );
 
-  // Debounce search
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(value);
+  // The change handler used to return a cleanup function that React discards,
+  // so the timeout was never cleared. Debounce in an effect instead.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
       setPage(1);
     }, 300);
-    return () => clearTimeout(timeout);
-  };
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleSearchChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(event.target.value);
+    },
+    []
+  );
+
+  const handleRetry = useCallback(() => {
+    window.location.reload();
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearch("");
+    setStatusFilter("");
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    setPage((p) => p + 1);
+  }, []);
 
   const events = data?.events ?? [];
-  const hasMore = events.length === 12;
+  const hasMore = events.length === PAGE_SIZE;
+  const hasFilters = Boolean(search || statusFilter);
+
+  const body = renderEventsBody({
+    events,
+    hasFilters,
+    hasMore,
+    isPending: status === "pending" && !data,
+    onClearFilters: handleClearFilters,
+    onLoadMore: handleLoadMore,
+  });
 
   if (isError) {
     return (
@@ -72,7 +111,7 @@ function HackathonsComponent() {
         <p className="text-error">
           Failed to load hackathons. Please try again.
         </p>
-        <Button className="mt-4" onClick={() => window.location.reload()}>
+        <Button className="mt-4" onClick={handleRetry} type="button">
           Retry
         </Button>
       </div>
@@ -96,7 +135,7 @@ function HackathonsComponent() {
           <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-10"
-            onChange={(e) => handleSearchChange(e.target.value)}
+            onChange={handleSearchChange}
             placeholder="Search hackathons..."
             value={search}
           />
@@ -127,109 +166,118 @@ function HackathonsComponent() {
       </div>
 
       {/* Events Grid */}
-      {isLoading && !data ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <EventCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : events.length === 0 ? (
-        <div className="py-16 text-center">
-          <TrophyIcon className="mx-auto mb-4 size-12 text-muted-foreground/50" />
-          <h3 className="font-semibold text-foreground text-lg">
-            No hackathons found
-          </h3>
-          <p className="mt-2 text-muted-foreground">
-            {search || statusFilter
-              ? "Try adjusting your search or filters"
-              : "No hackathons available at the moment"}
-          </p>
-          {(search || statusFilter) && (
-            <Button
-              className="mt-4"
-              onClick={() => {
-                setSearch("");
-                setStatusFilter("");
-              }}
-              variant="outline"
-            >
-              Clear filters
-            </Button>
-          )}
-        </div>
-      ) : (
-        <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => (
-              <EventCard event={event} key={event.id} />
-            ))}
-          </div>
-
-          {hasMore && (
-            <div className="mt-8 text-center">
-              <Button
-                className="w-full sm:w-auto"
-                disabled={isLoading}
-                onClick={() => setPage((p) => p + 1)}
-                variant="outline"
-              >
-                Load more
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+      {body}
     </div>
   );
 }
 
-function EventCard({
-  event,
+function renderEventsBody({
+  events,
+  hasMore,
+  hasFilters,
+  isPending,
+  onClearFilters,
+  onLoadMore,
 }: {
-  event: {
-    id: string;
-    name: string;
-    slug: string;
-    tagline: string | null;
-    status: string;
-    startDate: string | null;
-    endDate: string | null;
-    submissionDeadline: string | null;
-    coverImageUrl: string | null;
-    maxTeamSize: number;
-  };
+  events: EventListItem[];
+  hasFilters: boolean;
+  hasMore: boolean;
+  isPending: boolean;
+  onClearFilters: () => void;
+  onLoadMore: () => void;
 }) {
+  if (isPending) {
+    return (
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {SKELETON_SLOTS.map((slot) => (
+          <EventCardSkeleton key={slot} />
+        ))}
+      </div>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <div className="py-16 text-center">
+        <TrophyIcon className="mx-auto mb-4 size-12 text-muted-foreground/50" />
+        <h3 className="font-semibold text-foreground text-lg">
+          No hackathons found
+        </h3>
+        <p className="mt-2 text-muted-foreground">
+          {hasFilters
+            ? "Try adjusting your search or filters"
+            : "No hackathons available at the moment"}
+        </p>
+        {hasFilters ? (
+          <Button
+            className="mt-4"
+            onClick={onClearFilters}
+            type="button"
+            variant="outline"
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {events.map((event) => (
+          <EventCard event={event} key={event.id} />
+        ))}
+      </div>
+      {hasMore ? (
+        <div className="mt-8 text-center">
+          <Button
+            className="w-full sm:w-auto"
+            onClick={onLoadMore}
+            type="button"
+            variant="outline"
+          >
+            Load more
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function EventCard({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
-  const isUpcoming = event.startDate && new Date(event.startDate) > new Date();
 
   return (
     <Link className="block" to={`/hackathons/${event.slug}`}>
       <Card className="flex h-full flex-col" variant="interactive">
-        {event.coverImageUrl && (
+        {event.coverImageUrl ? (
           <div className="relative aspect-video w-full overflow-hidden rounded-t-lg">
             <img
               alt=""
               className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+              height={360}
               src={event.coverImageUrl}
+              width={640}
             />
             <div className="absolute top-3 right-3">
               <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
             </div>
           </div>
-        )}
+        ) : null}
 
         <CardHeader className="pb-2">
           <CardTitle className="line-clamp-1 text-lg">{event.name}</CardTitle>
-          {event.tagline && (
+          {event.tagline ? (
             <CardDescription className="line-clamp-2">
               {event.tagline}
             </CardDescription>
-          )}
+          ) : null}
         </CardHeader>
 
         <CardContent className="flex flex-1 flex-col">
           <div className="mb-4 flex flex-wrap gap-3 text-muted-foreground text-sm">
-            {event.startDate && (
+            {event.startDate ? (
               <span className="flex items-center gap-1.5">
                 <CalendarIcon className="size-3.5" />
                 <span>
@@ -237,15 +285,15 @@ function EventCard({
                   {event.endDate ? formatDate(event.endDate) : "TBD"}
                 </span>
               </span>
-            )}
-            {event.submissionDeadline && (
+            ) : null}
+            {event.submissionDeadline ? (
               <span className="flex items-center gap-1.5">
                 <ClockIcon className="size-3.5" />
                 <span>
                   Submits by {formatRelativeTime(event.submissionDeadline)}
                 </span>
               </span>
-            )}
+            ) : null}
             <span className="flex items-center gap-1.5">
               <UsersIcon className="size-3.5" />
               <span>Teams up to {event.maxTeamSize}</span>

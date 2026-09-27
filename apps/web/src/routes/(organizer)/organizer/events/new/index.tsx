@@ -8,6 +8,7 @@ import {
 } from "@rave/ui/components/card";
 import { Checkbox } from "@rave/ui/components/checkbox";
 import { Input } from "@rave/ui/components/input";
+import { Label } from "@rave/ui/components/label";
 import {
   Select,
   SelectContent,
@@ -18,7 +19,7 @@ import {
 import { Separator } from "@rave/ui/components/separator";
 import { Textarea } from "@rave/ui/components/textarea";
 import { useForm } from "@tanstack/react-form";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   CalendarIcon,
   ChevronRightIcon,
@@ -28,13 +29,47 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
+import type * as React from "react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { FormField } from "@/components/form-field";
-
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
+
+/** Slug rules live at module scope so the regex is not rebuilt on every render. */
+const SLUG_PATTERN = /^[a-z0-9-]+$/;
+const SLUG_NON_ALNUM = /[^a-z0-9]+/g;
+const SLUG_EDGES = /^-+|-+$/g;
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(SLUG_NON_ALNUM, "-")
+    .replace(SLUG_EDGES, "");
+}
+
+function getStepCircleClass(index: number, activeStep: number): string {
+  const base =
+    "flex h-10 w-10 items-center justify-center rounded-full font-medium text-sm transition-colors";
+  if (index < activeStep) {
+    return `${base} bg-primary text-primary-foreground`;
+  }
+  return index === activeStep
+    ? `${base} bg-primary/10 text-primary`
+    : `${base} bg-muted text-muted-foreground`;
+}
+
+interface TrackDraft {
+  description: string;
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+function createTrack(sortOrder: number): TrackDraft {
+  return { description: "", id: `t_${Date.now()}`, name: "", sortOrder };
+}
 
 export const Route = createFileRoute("/(organizer)/organizer/events/new/")({
   component: CreateEventComponent,
@@ -103,7 +138,7 @@ function CreateEventComponent() {
           .min(3)
           .max(80)
           .regex(
-            /^[a-z0-9-]+$/,
+            SLUG_PATTERN,
             "Slug must be lowercase alphanumeric with dashes"
           ),
         tagline: z.string().max(200).optional(),
@@ -138,6 +173,46 @@ function CreateEventComponent() {
     },
   });
 
+  const [tracks, setTracks] = useState<TrackDraft[]>(() => [createTrack(0)]);
+
+  const addTrack = useCallback(() => {
+    setTracks((prev) => [...prev, createTrack(prev.length)]);
+  }, []);
+
+  const removeTrack = useCallback((id: string) => {
+    setTracks((prev) =>
+      prev.length <= 1 ? prev : prev.filter((t) => t.id !== id)
+    );
+  }, []);
+
+  const updateTrack = useCallback(
+    (id: string, field: string, value: string) => {
+      setTracks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, [field]: value } : t))
+      );
+    },
+    []
+  );
+
+  const handleSlugBlur = useCallback(
+    (event: React.FocusEvent<HTMLInputElement>) => {
+      if (!form.state.values.slug && form.state.values.name) {
+        form.getFieldControls("slug").onChange(slugify(event.target.value));
+      }
+    },
+    [form]
+  );
+
+  const handleStepClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const { step } = event.currentTarget.dataset;
+      if (step) {
+        setActiveStep(Number(step));
+      }
+    },
+    []
+  );
+
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -147,12 +222,6 @@ function CreateEventComponent() {
     [form]
   );
 
-  const slugify = (text: string) =>
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Progress Steps */}
@@ -160,16 +229,7 @@ function CreateEventComponent() {
         <div className="flex items-center justify-between">
           {steps.map((step, index) => (
             <div className="flex items-center" key={step}>
-              <div
-                className={`flex h-10 w-10 items-center justify-center rounded-full font-medium text-sm transition-colors ${
-                  index < activeStep
-                    ? "bg-primary text-primary-foreground"
-                    : index === activeStep
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
-                }
-                `}
-              >
+              <div className={getStepCircleClass(index, activeStep)}>
                 {index < activeStep ? (
                   <ChevronRightIcon className="size-5" />
                 ) : (
@@ -218,13 +278,7 @@ function CreateEventComponent() {
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">rave.dev/</span>
                   <Input
-                    onBlur={(e) => {
-                      if (!form.state.values.slug && form.state.values.name) {
-                        form
-                          .getFieldControls("slug")
-                          .onChange(slugify(e.target.value));
-                      }
-                    }}
+                    onBlur={handleSlugBlur}
                     placeholder="sample-hack-2026"
                   />
                 </div>
@@ -287,7 +341,7 @@ function CreateEventComponent() {
               </div>
             </CardContent>
             <div className="flex justify-end gap-2 border-border border-t p-4">
-              <Button onClick={() => setActiveStep(1)} type="button">
+              <Button data-step={1} onClick={handleStepClick} type="button">
                 Next
                 <ChevronRightIcon className="size-4" />
               </Button>
@@ -414,13 +468,14 @@ function CreateEventComponent() {
             </CardContent>
             <div className="flex justify-between border-border border-t p-4">
               <Button
-                onClick={() => setActiveStep(0)}
+                data-step={0}
+                onClick={handleStepClick}
                 type="button"
                 variant="outline"
               >
                 Back
               </Button>
-              <Button onClick={() => setActiveStep(2)} type="button">
+              <Button data-step={2} onClick={handleStepClick} type="button">
                 Next
                 <ChevronRightIcon className="size-4" />
               </Button>
@@ -438,13 +493,22 @@ function CreateEventComponent() {
                   Define competition categories and awards
                 </CardDescription>
               </div>
-              <Button onClick={() => addTrack()} size="sm" variant="outline">
+              <Button
+                onClick={addTrack}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
                 <PlusIcon className="size-4" />
                 Add Track
               </Button>
             </CardHeader>
             <CardContent>
-              <TracksForm form={form} />
+              <TracksForm
+                onRemove={removeTrack}
+                onUpdate={updateTrack}
+                tracks={tracks}
+              />
               <Separator className="my-4" />
               <div className="flex justify-between">
                 <h4 className="font-medium">Prizes</h4>
@@ -461,13 +525,14 @@ function CreateEventComponent() {
             </CardContent>
             <div className="flex justify-between border-border border-t p-4">
               <Button
-                onClick={() => setActiveStep(1)}
+                data-step={1}
+                onClick={handleStepClick}
                 type="button"
                 variant="outline"
               >
                 Back
               </Button>
-              <Button onClick={() => setActiveStep(3)} type="button">
+              <Button data-step={3} onClick={handleStepClick} type="button">
                 Next
                 <ChevronRightIcon className="size-4" />
               </Button>
@@ -554,7 +619,8 @@ function CreateEventComponent() {
             </CardContent>
             <div className="flex justify-end gap-2 border-border border-t p-4">
               <Button
-                onClick={() => setActiveStep(2)}
+                data-step={2}
+                onClick={handleStepClick}
                 type="button"
                 variant="outline"
               >
@@ -572,99 +638,64 @@ function CreateEventComponent() {
   );
 }
 
+interface QuestionDraft {
+  id: string;
+  label: string;
+  required: boolean;
+  type: "text" | "url" | "textarea";
+}
+
 function CustomQuestions({ form }: { form: ReturnType<typeof useForm> }) {
-  const [questions, setQuestions] = useState(
+  const [questions, setQuestions] = useState<QuestionDraft[]>(
     form.state.values.customQuestions ?? []
   );
 
-  const addQuestion = () => {
-    const newQuestion = {
-      id: `q_${Date.now()}`,
-      label: "",
-      type: "text" as const,
-      required: false,
-    };
-    setQuestions([...questions, newQuestion]);
-    form
-      .getFieldControls("customQuestions")
-      .onChange([...questions, newQuestion]);
-  };
+  const commit = useCallback(
+    (next: QuestionDraft[]) => {
+      setQuestions(next);
+      form.getFieldControls("customQuestions").onChange(next);
+    },
+    [form]
+  );
 
-  const removeQuestion = (id: string) => {
-    const updated = questions.filter((q) => q.id !== id);
-    setQuestions(updated);
-    form.getFieldControls("customQuestions").onChange(updated);
-  };
+  const addQuestion = useCallback(() => {
+    commit([
+      ...questions,
+      { id: `q_${Date.now()}`, label: "", required: false, type: "text" },
+    ]);
+  }, [commit, questions]);
 
-  const updateQuestion = (
-    id: string,
-    field: string,
-    value: string | boolean
-  ) => {
-    const updated = questions.map((q) =>
-      q.id === id ? { ...q, [field]: value } : q
-    );
-    setQuestions(updated);
-    form.getFieldControls("customQuestions").onChange(updated);
-  };
+  const removeQuestion = useCallback(
+    (id: string) => {
+      commit(questions.filter((q) => q.id !== id));
+    },
+    [commit, questions]
+  );
+
+  const updateQuestion = useCallback(
+    (id: string, field: string, value: string | boolean) => {
+      commit(
+        questions.map((q) => (q.id === id ? { ...q, [field]: value } : q))
+      );
+    },
+    [commit, questions]
+  );
 
   return (
     <div className="space-y-4">
       {questions.map((question) => (
-        <Card
-          className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+        <QuestionRow
           key={question.id}
-          variant="borderless"
-        >
-          <div className="flex-1 space-y-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Input
-                onChange={(e) =>
-                  updateQuestion(question.id, "label", e.target.value)
-                }
-                placeholder="Question label"
-                value={question.label}
-              />
-              <Select
-                onValueChange={(v) => updateQuestion(question.id, "type", v)}
-                value={question.type}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Short Text</SelectItem>
-                  <SelectItem value="url">URL</SelectItem>
-                  <SelectItem value="textarea">Long Text</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={question.required}
-                  onCheckedChange={(checked) =>
-                    updateQuestion(question.id, "required", checked)
-                  }
-                />
-                <Label>Required</Label>
-              </div>
-            </div>
-          </div>
-          <Button
-            className="text-error hover:text-error"
-            onClick={() => removeQuestion(question.id)}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <XIcon className="size-4" />
-          </Button>
-        </Card>
+          onRemove={removeQuestion}
+          onUpdate={updateQuestion}
+          question={question}
+        />
       ))}
-      {questions.length === 0 && (
+      {questions.length === 0 ? (
         <div className="py-8 text-center text-muted-foreground">
           <p>No custom questions yet</p>
         </div>
-      )}
+      ) : null}
       <Button
         className="w-full sm:w-auto"
         onClick={addQuestion}
@@ -678,33 +709,114 @@ function CustomQuestions({ form }: { form: ReturnType<typeof useForm> }) {
   );
 }
 
-function TracksForm({ form }: { form: ReturnType<typeof useForm> }) {
-  const [tracks, setTracks] = useState([
-    { id: `t_${Date.now()}`, name: "", description: "", sortOrder: 0 },
-  ]);
+function QuestionRow({
+  question,
+  onRemove,
+  onUpdate,
+}: {
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, field: string, value: string | boolean) => void;
+  question: QuestionDraft;
+}) {
+  const { id } = question;
 
-  const addTrack = () => {
-    setTracks([
-      ...tracks,
-      {
-        id: `t_${Date.now()}`,
-        name: "",
-        description: "",
-        sortOrder: tracks.length,
-      },
-    ]);
-  };
+  const handleLabelChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      onUpdate(id, "label", event.target.value);
+    },
+    [id, onUpdate]
+  );
 
-  const removeTrack = (id: string) => {
-    if (tracks.length <= 1) {
-      return;
-    }
-    setTracks(tracks.filter((t) => t.id !== id));
-  };
+  const handleTypeChange = useCallback(
+    (value: string | null) => {
+      onUpdate(id, "type", value ?? "text");
+    },
+    [id, onUpdate]
+  );
 
-  const updateTrack = (id: string, field: string, value: string) => {
-    setTracks(tracks.map((t) => (t.id === id ? { ...t, [field]: value } : t)));
-  };
+  const handleRequiredChange = useCallback(
+    (checked: boolean) => {
+      onUpdate(id, "required", checked);
+    },
+    [id, onUpdate]
+  );
+
+  const handleRemove = useCallback(() => {
+    onRemove(id);
+  }, [id, onRemove]);
+
+  return (
+    <Card
+      className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+      variant="borderless"
+    >
+      <div className="flex-1 space-y-3">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <Input
+            onChange={handleLabelChange}
+            placeholder="Question label"
+            value={question.label}
+          />
+          <Select onValueChange={handleTypeChange} value={question.type}>
+            <SelectTrigger>
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="text">Short Text</SelectItem>
+              <SelectItem value="url">URL</SelectItem>
+              <SelectItem value="textarea">Long Text</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={question.required}
+              onCheckedChange={handleRequiredChange}
+            />
+            <Label>Required</Label>
+          </div>
+        </div>
+      </div>
+      <Button
+        className="text-error hover:text-error"
+        onClick={handleRemove}
+        size="icon"
+        type="button"
+        variant="ghost"
+      >
+        <XIcon className="size-4" />
+      </Button>
+    </Card>
+  );
+}
+
+function TracksForm({
+  tracks,
+  onRemove,
+  onUpdate,
+}: {
+  onRemove: (id: string) => void;
+  onUpdate: (id: string, field: string, value: string) => void;
+  tracks: TrackDraft[];
+}) {
+  const handleFieldChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { field, trackId } = event.currentTarget.dataset;
+      if (field && trackId) {
+        onUpdate(trackId, field, event.target.value);
+      }
+    },
+    [onUpdate]
+  );
+
+  const handleRemoveClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const { trackId } = event.currentTarget.dataset;
+      if (trackId) {
+        onRemove(trackId);
+      }
+    },
+    [onRemove]
+  );
 
   return (
     <div className="space-y-4">
@@ -717,39 +829,42 @@ function TracksForm({ form }: { form: ReturnType<typeof useForm> }) {
           <div className="flex-1 space-y-3">
             <div className="grid gap-2 sm:grid-cols-3">
               <Input
-                onChange={(e) => updateTrack(track.id, "name", e.target.value)}
+                data-field="name"
+                data-track-id={track.id}
+                onChange={handleFieldChange}
                 placeholder="Track name (e.g., Developer Tools)"
                 value={track.name}
               />
               <Input
-                onChange={(e) =>
-                  updateTrack(track.id, "description", e.target.value)
-                }
+                data-field="description"
+                data-track-id={track.id}
+                onChange={handleFieldChange}
                 placeholder="Description (optional)"
                 value={track.description}
               />
               <Input
                 className="w-24"
-                onChange={(e) =>
-                  updateTrack(track.id, "sortOrder", e.target.value)
-                }
+                data-field="sortOrder"
+                data-track-id={track.id}
+                onChange={handleFieldChange}
                 placeholder="Sort order"
                 type="number"
                 value={track.sortOrder}
               />
             </div>
           </div>
-          {tracks.length > 1 && (
+          {tracks.length > 1 ? (
             <Button
               className="text-error hover:text-error"
-              onClick={() => removeTrack(track.id)}
+              data-track-id={track.id}
+              onClick={handleRemoveClick}
               size="icon"
               type="button"
               variant="ghost"
             >
               <XIcon className="size-4" />
             </Button>
-          )}
+          ) : null}
         </Card>
       ))}
     </div>
@@ -775,5 +890,3 @@ function ReviewSection({
     </div>
   );
 }
-
-import { redirect } from "@tanstack/react-router";

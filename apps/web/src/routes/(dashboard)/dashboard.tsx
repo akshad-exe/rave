@@ -30,6 +30,10 @@ import {
 } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 
+/** Stable keys for skeleton placeholders, which have no id of their own. */
+const EVENT_SKELETON_KEYS = ["a", "b", "c"] as const;
+const SUBMISSION_SKELETON_KEYS = ["a", "b", "c"] as const;
+
 export const Route = createFileRoute("/(dashboard)/dashboard")({
   component: DashboardComponent,
 });
@@ -50,9 +54,6 @@ function DashboardComponent() {
       ?.filter((e) => new Date(e.startDate) > new Date())
       .slice(0, 3) ?? [];
   const recentSubmissions = mySubmissions?.slice(0, 3) ?? [];
-
-  const eventSkeletonKeys = Array.from({ length: 3 }, (_, i) => `skeleton-event-${i}`);
-  const submissionSkeletonKeys = Array.from({ length: 3 }, (_, i) => `skeleton-submission-${i}`);
 
   return (
     <div className="space-y-8">
@@ -189,7 +190,7 @@ function renderUpcomingEvents(
   if (eventsStatus === "pending") {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {eventSkeletonKeys.map((key) => (
+        {EVENT_SKELETON_KEYS.map((key) => (
           <EventCardSkeleton key={key} />
         ))}
       </div>
@@ -239,7 +240,7 @@ function renderRecentSubmissions(
   if (submissionsStatus === "pending") {
     return (
       <div className="space-y-3">
-        {submissionSkeletonKeys.map((key) => (
+        {SUBMISSION_SKELETON_KEYS.map((key) => (
           <SubmissionRowSkeleton key={key} />
         ))}
       </div>
@@ -359,9 +360,7 @@ function EventCard({
             {hasSubmissionDeadline && (
               <span className="flex items-center gap-1.5">
                 <ClockIcon className="size-3.5" />
-                <span>
-                  Submits {formatRelativeTime(submissionDeadline)}
-                </span>
+                <span>Submits {formatRelativeTime(submissionDeadline)}</span>
               </span>
             )}
           </div>
@@ -436,11 +435,11 @@ function SubmissionRow({
             {submission.trackId ? `Track: ${submission.trackId}` : "No track"}
             {hasSubmittedAt &&
               ` • Submitted ${formatRelativeTime(submittedAt)}`}
-        </p>
+          </p>
+        </div>
       </div>
-    </div>
-    <Badge variant={config.variant}>{config.label}</Badge>
-  </Card>
+      <Badge variant={config.variant}>{config.label}</Badge>
+    </Card>
   );
 }
 
@@ -482,34 +481,5 @@ function ActionCard({
         <ChevronRightIcon className="size-5 self-end text-muted-foreground" />
       </Card>
     </Link>
-  );
-}
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  trend,
-}: {
-  title: string;
-  value: number;
-  icon: React.ComponentType<{ className?: string }>;
-  trend: string;
-}) {
-  return (
-    <Card className="p-5" variant="default">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-muted-foreground text-sm">{title}</p>
-          <p className="mt-1 font-bold font-display text-3xl text-foreground">
-            {value}
-          </p>
-        </div>
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">
-          <Icon className="size-6" />
-        </div>
-      </div>
-      <p className="mt-3 text-muted-foreground text-xs">{trend}</p>
-    </Card>
   );
 }

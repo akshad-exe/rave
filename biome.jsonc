@@ -6,6 +6,15 @@
     "ultracite/biome/tanstack"
   ],
   "files": {
-    "includes": ["!**/dist", "!**/node_modules", "!docs/dogfood/fixtures.json"]
+    // `fixtures.json` at the repo root is a symlink to
+    // `docs/dogfood/fixtures.json`; the acceptance checker relies on it to find
+    // the fixture without a `--fixtures` flag. Biome cannot follow it, so both
+    // the link and its target are excluded.
+    "includes": [
+      "!**/dist",
+      "!**/node_modules",
+      "!docs/dogfood/fixtures.json",
+      "!fixtures.json"
+    ]
   }
 }

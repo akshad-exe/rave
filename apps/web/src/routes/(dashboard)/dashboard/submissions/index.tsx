@@ -10,7 +10,7 @@ import {
   EmptyTitle,
 } from "@rave/ui/components/empty";
 import { Skeleton } from "@rave/ui/components/skeleton";
-import { useCallback, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertCircleIcon,
@@ -20,6 +20,7 @@ import {
   GlobeIcon,
   PlusIcon,
 } from "lucide-react";
+import { useCallback } from "react";
 import { formatRelativeTime } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 

@@ -1,8 +1,14 @@
-"use client";
-
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { cn } from "@rave/ui/lib/utils";
 import type * as React from "react";
+import { useCallback } from "react";
 
+/**
+ * Tabs are addressed by a numeric `index` rather than a string `value`, because
+ * every caller in this app lays out a fixed, ordered set of panels. `index` is
+ * translated to base-ui's `value` so the primitive owns selection, roving
+ * focus, and the `aria-*` wiring.
+ */
 interface TabsProps {
   children: React.ReactNode;
   className?: string;
@@ -10,103 +16,102 @@ interface TabsProps {
   onChange?: (index: number) => void;
 }
 
-function Tabs({ defaultIndex = 0, onChange, className, children }: TabsProps) {
-  const [activeIndex, setActiveIndex] = React.useState(defaultIndex);
-
-  React.useEffect(() => {
-    setActiveIndex(defaultIndex);
-  }, [defaultIndex]);
-
-  const childArray = React.Children.toArray(children);
-  const tabList = childArray.find(
-    (child) => child.type === TabList
-  ) as React.ReactElement;
-  const tabPanels = childArray.filter(
-    (child) => child.type === TabPanel
-  ) as React.ReactElement[];
-
-  if (!tabList) {
-    return null;
-  }
-
-  const triggers = React.Children.toArray(
-    tabList.props.children
-  ) as React.ReactElement[];
+function Tabs({ children, className, defaultIndex = 0, onChange }: TabsProps) {
+  const handleValueChange = useCallback(
+    (value: unknown) => {
+      if (typeof value === "number") {
+        onChange?.(value);
+      }
+    },
+    [onChange]
+  );
 
   return (
-    <div className={cn("w-full", className)} data-slot="tabs">
-      <div
-        className={cn(
-          "flex items-center gap-1 rounded-md bg-muted p-1",
-          tabList.props.className
-        )}
-        data-slot="tabs-list"
-        role="tablist"
-      >
-        {triggers.map((trigger, index) => (
-          <button
-            aria-controls={`panel-${index}`}
-            aria-selected={index === activeIndex}
-            className={cn(
-              "relative flex size-full items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 font-medium text-muted-foreground text-sm outline-none transition-all",
-              index === activeIndex
-                ? "bg-background text-foreground shadow-sm"
-                : "hover:bg-muted hover:text-foreground",
-              "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
-              "disabled:pointer-events-none disabled:opacity-50",
-              trigger.props.className
-            )}
-            data-slot="tabs-trigger"
-            id={`tab-${index}`}
-            key={trigger.key ?? index}
-            onClick={() => {
-              setActiveIndex(index);
-              onChange?.(index);
-            }}
-            role="tab"
-            {...trigger.props}
-          >
-            {trigger.props.children}
-          </button>
-        ))}
-      </div>
-      {tabPanels.map((panel, index) => (
-        <div
-          aria-labelledby={`tab-${index}`}
-          className={cn(
-            "mt-4 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
-            panel.props.className
-          )}
-          data-slot="tabs-content"
-          hidden={index !== activeIndex}
-          id={`panel-${index}`}
-          key={panel.key ?? index}
-          role="tabpanel"
-          {...panel.props}
-        >
-          {panel.props.children}
-        </div>
-      ))}
-    </div>
+    <TabsPrimitive.Root
+      className={cn("w-full", className)}
+      data-index={defaultIndex}
+      data-slot="tabs"
+      defaultValue={defaultIndex}
+      onValueChange={handleValueChange}
+    >
+      {children}
+    </TabsPrimitive.Root>
   );
 }
 
-interface TabListProps {
-  children: React.ReactNode;
-  className?: string;
+function TabsList({
+  children,
+  className,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.List>) {
+  return (
+    <TabsPrimitive.List
+      className={cn(
+        "flex items-center gap-1 rounded-md bg-muted p-1",
+        className
+      )}
+      data-slot="tabs-list"
+      {...props}
+    >
+      {children}
+    </TabsPrimitive.List>
+  );
 }
 
-function TabList({ className, children }: TabListProps) {
-  return <div className={className}>{children}</div>;
+interface TabsTriggerProps
+  extends Omit<React.ComponentProps<typeof TabsPrimitive.Tab>, "value"> {
+  index: number;
 }
 
-interface TabPanelProps {
-  children: React.ReactNode;
-  className?: string;
+function TabsTrigger({
+  children,
+  className,
+  index,
+  ...props
+}: TabsTriggerProps) {
+  return (
+    <TabsPrimitive.Tab
+      className={cn(
+        "relative flex size-full items-center justify-center gap-1.5 rounded-sm px-3 py-1.5 font-medium text-muted-foreground text-sm outline-none transition-all",
+        "hover:text-foreground",
+        "focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "data-selected:bg-background data-selected:text-foreground data-selected:shadow-sm",
+        className
+      )}
+      data-slot="tabs-trigger"
+      value={index}
+      {...props}
+    >
+      {children}
+    </TabsPrimitive.Tab>
+  );
 }
 
-function TabPanel({ className, children }: TabPanelProps) {
-  return <div className={className}>{children}</div>;
+interface TabsContentProps
+  extends Omit<React.ComponentProps<typeof TabsPrimitive.Panel>, "value"> {
+  index: number;
 }
 
-export { TabList as TabsList, TabPanel as TabsContent, Tabs };
+function TabsContent({
+  children,
+  className,
+  index,
+  ...props
+}: TabsContentProps) {
+  return (
+    <TabsPrimitive.Panel
+      className={cn(
+        "mt-4 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30",
+        className
+      )}
+      data-slot="tabs-content"
+      value={index}
+      {...props}
+    >
+      {children}
+    </TabsPrimitive.Panel>
+  );
+}
+
+export { Tabs, TabsContent, TabsList, TabsTrigger };

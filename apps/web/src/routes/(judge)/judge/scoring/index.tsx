@@ -24,42 +24,153 @@ import {
   SaveIcon,
   VideoIcon,
 } from "lucide-react";
-import { useState } from "react";
-import { orpc } from "@/utils/orpc";
+import type * as React from "react";
+import { useCallback, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { type client, orpc } from "@/utils/orpc";
+
+type RubricDetail = Awaited<ReturnType<typeof client.rubrics.get>>;
+type RubricCriterion = RubricDetail["criteria"][number];
+
+type AssignmentSummary = NonNullable<
+  Awaited<ReturnType<typeof client.assignments.myAssignments>>
+>[number];
 
 export const Route = createFileRoute("/(judge)/judge/scoring/")({
   component: JudgeScoringComponent,
 });
 
 function JudgeScoringComponent() {
-  const { data: myAssignments, isLoading } = useQuery(
+  const { data: myAssignments, status: assignmentsStatus } = useQuery(
     orpc.assignments.myAssignments.queryOptions({ eventId: "" })
   );
-  const [selectedAssignment, setSelectedAssignment] = useState<string | null>(
-    null
+
+  const assignments = useMemo(() => myAssignments ?? [], [myAssignments]);
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Fall back to the first unfinished assignment instead of writing to state
+  // during render, which React disallows and which re-renders in a loop.
+  const activeId =
+    selectedId ??
+    assignments.find((a) => a.status !== "completed")?.id ??
+    assignments[0]?.id ??
+    null;
+
+  const assignment = assignments.find((a) => a.id === activeId) ?? null;
+
+  const { data: assignmentDetail, status: detailStatus } = useQuery(
+    orpc.assignments.getAssignedSubmission.queryOptions(
+      { assignmentId: activeId ?? "" },
+      { enabled: activeId !== null }
+    )
   );
 
-  // Auto-select first pending/in_progress assignment
-  if (!selectedAssignment && myAssignments && !isLoading) {
-    const pending = myAssignments.find(
-      (a) => a.status === "pending" || a.status === "in_progress"
-    );
-    if (pending) {
-      setSelectedAssignment(pending.id);
+  const rubricId = assignmentDetail?.assignment.rubricId ?? null;
+
+  const { data: rubric } = useQuery(
+    orpc.rubrics.get.queryOptions(
+      { rubricId: rubricId ?? "" },
+      { enabled: rubricId !== null }
+    )
+  );
+
+  const { data: myScore } = useQuery(
+    orpc.scoring.getMyScore.queryOptions(
+      { assignmentId: activeId ?? "" },
+      { enabled: activeId !== null }
+    )
+  );
+
+  const criteria = useMemo(() => rubric?.criteria ?? [], [rubric]);
+
+  const [scores, setScores] = useState<Record<string, number>>({});
+  const [feedback, setFeedback] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSelect = useCallback((id: string) => {
+    setSelectedId(id);
+    setScores({});
+    setFeedback("");
+  }, []);
+
+  const handleScoreChange = useCallback(
+    (criterionId: string, value: number) => {
+      setScores((prev) => ({ ...prev, [criterionId]: value }));
+    },
+    []
+  );
+
+  const handleFeedbackChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setFeedback(event.target.value);
+    },
+    []
+  );
+
+  const isComplete =
+    criteria.length > 0 && Object.keys(scores).length === criteria.length;
+
+  const totalScore = useMemo(
+    () =>
+      criteria.reduce(
+        (sum, c) => sum + (scores[c.id] ?? 0) * (Number(c.weight) / 100),
+        0
+      ),
+    [criteria, scores]
+  );
+
+  const handleSubmit = useCallback(async () => {
+    if (!(activeId && rubricId)) {
+      return;
     }
+    if (!isComplete) {
+      toast.error("Please score all criteria");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await orpc.scoring.submit.mutate({
+        assignmentId: activeId,
+        criterionScores: criteria.map((c) => ({
+          criterionId: c.id,
+          score: scores[c.id] ?? c.minScore,
+        })),
+        feedback: feedback || undefined,
+        rubricId,
+      });
+      toast.success("Score submitted successfully");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to submit score"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [activeId, rubricId, criteria, scores, feedback, isComplete]);
+
+  if (assignmentsStatus === "pending" || detailStatus === "pending") {
+    return <ScoringSkeleton />;
   }
 
-  const assignment = myAssignments?.find((a) => a.id === selectedAssignment);
-
-  if (isLoading) {
-    return <ScoringSkeleton />;
+  if (assignments.length === 0) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+        <Alert
+          description="You have no assignments yet. An organizer assigns submissions before the judging window opens."
+          title="No assignments"
+          variant="info"
+        />
+      </div>
+    );
   }
 
   if (!assignment) {
     return (
       <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
         <Alert
-          description="Select an assignment from the sidebar or complete all your current assignments."
+          description="Select an assignment from the list to score it."
           title="No assignment selected"
           variant="info"
         />
@@ -67,123 +178,25 @@ function JudgeScoringComponent() {
     );
   }
 
-  const { data: assignmentDetail, isLoading: detailLoading } = useQuery(
-    orpc.assignments.getAssignedSubmission.queryOptions({
-      assignmentId: assignment.id,
-    })
-  );
-
-  const { data: myScore, isLoading: scoreLoading } = useQuery(
-    orpc.scoring.getMyScore.queryOptions({ assignmentId: assignment.id })
-  );
-
-  if (detailLoading) {
-    return <ScoringSkeleton />;
-  }
-
-  const submission = assignmentDetail?.submission;
-  const rubric = assignmentDetail?.assignment.rubricId
-    ? { criteria: [] }
-    : null; // Would be fetched separately
-
-  // For now, mock rubric criteria
-  const mockCriteria = [
-    {
-      id: "crit_functionality",
-      name: "Functionality",
-      description: "Does the project work as intended?",
-      weight: 40,
-      minScore: 1,
-      maxScore: 5,
-    },
-    {
-      id: "crit_innovation",
-      name: "Innovation",
-      description: "How novel and creative is the approach?",
-      weight: 30,
-      minScore: 1,
-      maxScore: 5,
-    },
-    {
-      id: "crit_quality",
-      name: "Quality",
-      description: "Code quality, design, and polish",
-      weight: 30,
-      minScore: 1,
-      maxScore: 5,
-    },
-  ];
-
-  const [scores, setScores] = useState<Record<string, number>>(
-    myScore?.criterionScores?.reduce(
-      (acc, cs) => ({ ...acc, [cs.criterionId]: cs.score }),
-      {}
-    ) ?? {}
-  );
-  const [feedback, setFeedback] = useState(myScore?.feedback ?? "");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleScoreChange = (criterionId: string, score: number) => {
-    setScores((prev) => ({ ...prev, [criterionId]: score }));
-  };
-
-  const handleSubmit = async () => {
-    if (Object.keys(scores).length !== mockCriteria.length) {
-      toast.error("Please score all criteria");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      await orpc.scoring.submit.mutate(
-        {
-          assignmentId: assignment.id,
-          rubricId: assignmentDetail?.assignment.rubricId ?? "",
-          criterionScores: mockCriteria.map((c) => ({
-            criterionId: c.id,
-            score: scores[c.id],
-          })),
-          feedback: feedback || undefined,
-        },
-        {
-          onSuccess: () => {
-            toast.success("Score submitted successfully");
-          },
-          onError: (error) => {
-            toast.error(error.message || "Failed to submit score");
-          },
-        }
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const totalScore = mockCriteria.reduce(
-    (sum, c) => sum + (scores[c.id] ?? 0) * (c.weight / 100),
-    0
-  );
-
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-4">
-        {/* Sidebar - Assignment List */}
         <aside className="space-y-6 lg:col-span-1">
           <Card variant="default">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 Your Assignments
-                <Badge variant="subtle">{myAssignments?.length ?? 0}</Badge>
+                <Badge variant="subtle">{assignments.length}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="space-y-2">
-                {myAssignments?.map((a) => (
+                {assignments.map((a) => (
                   <AssignmentSidebarItem
                     assignment={a}
-                    isSelected={a.id === selectedAssignment}
+                    isSelected={a.id === activeId}
                     key={a.id}
-                    onClick={() => setSelectedAssignment(a.id)}
+                    onSelect={handleSelect}
                   />
                 ))}
               </div>
@@ -191,141 +204,67 @@ function JudgeScoringComponent() {
           </Card>
         </aside>
 
-        {/* Main - Scoring Interface */}
         <div className="space-y-6 lg:col-span-3">
-          {/* Submission Overview */}
-          <Card variant="default">
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge
-                      variant={
-                        assignment.status === "completed"
-                          ? "success"
-                          : assignment.status === "in_progress"
-                            ? "warning"
-                            : "outline"
-                      }
-                    >
-                      {assignment.status === "completed"
-                        ? "Scored"
-                        : assignment.status === "in_progress"
-                          ? "In Progress"
-                          : "Pending"}
-                    </Badge>
-                    {submission?.trackId && (
-                      <Badge variant="subtle">{submission.trackId}</Badge>
-                    )}
-                  </div>
-                  <h2 className="font-bold font-display text-foreground text-xl">
-                    {submission?.name ?? "Loading..."}
-                  </h2>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <p className="font-bold font-display text-3xl text-primary">
-                      {totalScore.toFixed(1)}
-                    </p>
-                    <p className="text-muted-foreground text-sm">
-                      Weighted Total
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {submission &&
-                  [
-                    {
-                      label: "Repository",
-                      value: submission.repositoryUrl ? "Linked" : "—",
-                      icon: CodeIcon,
-                      url: submission.repositoryUrl,
-                    },
-                    {
-                      label: "Live Demo",
-                      value: submission.liveDemoUrl ? "Linked" : "—",
-                      icon: GlobeIcon,
-                      url: submission.liveDemoUrl,
-                    },
-                    {
-                      label: "Video",
-                      value: submission.demoVideoUrl ? "Linked" : "—",
-                      icon: VideoIcon,
-                      url: submission.demoVideoUrl,
-                    },
-                    {
-                      label: "Team",
-                      value: submission.teamId ? "Team" : "Individual",
-                      icon: CheckCircleIcon,
-                      url: null,
-                    },
-                  ].map((item) => (
-                    <div
-                      className="rounded-lg bg-muted/30 p-3"
-                      key={item.label}
-                    >
-                      <div className="mb-1 flex items-center gap-2 text-muted-foreground text-sm">
-                        <item.icon className="size-4" />
-                        <span>{item.label}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{item.value}</span>
-                        {item.url && (
-                          <a
-                            className="text-primary text-sm hover:underline"
-                            href={item.url}
-                            rel="noopener noreferrer"
-                            target="_blank"
-                          >
-                            View <ExternalLinkIcon className="ml-1 size-3.5" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </CardContent>
-          </Card>
+          <SubmissionOverview
+            assignment={assignment}
+            submission={assignmentDetail?.submission}
+            totalScore={totalScore}
+          />
 
-          {/* Scoring Form */}
           <Card variant="default">
             <CardHeader>
               <CardTitle>Scoring Criteria</CardTitle>
               <CardDescription>
-                Rate each criterion from 1-5. Weights are applied automatically.
+                {rubric
+                  ? `Rate each criterion from ${criteria[0]?.minScore ?? 0} to ${criteria[0]?.maxScore ?? 10}. Weights are applied automatically.`
+                  : "This assignment has no rubric attached."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-0">
-              {mockCriteria.map((criterion) => (
+              {myScore?.isLocked ? (
+                <Alert
+                  description="Scores for this event are locked and can no longer be changed."
+                  title="Scores locked"
+                  variant="warning"
+                />
+              ) : null}
+
+              {criteria.map((criterion) => (
                 <ScoringCriterion
                   criterion={criterion}
+                  disabled={Boolean(myScore?.isLocked) || isSubmitting}
                   key={criterion.id}
-                  onChange={(score) => handleScoreChange(criterion.id, score)}
+                  onChange={handleScoreChange}
                   score={scores[criterion.id]}
                 />
               ))}
+
               <Separator className="my-4" />
+
               <div>
-                <label className="mb-2 block font-medium text-foreground text-sm">
+                <label
+                  className="mb-2 block font-medium text-foreground text-sm"
+                  htmlFor="scoring-feedback"
+                >
                   Feedback (optional)
                 </label>
                 <Textarea
-                  onChange={(e) => setFeedback(e.target.value)}
+                  disabled={Boolean(myScore?.isLocked)}
+                  id="scoring-feedback"
+                  onChange={handleFeedbackChange}
                   placeholder="Provide constructive feedback for the team..."
                   rows={4}
                   value={feedback}
                 />
               </div>
+
               <div className="flex justify-end gap-3 border-border border-t pt-4">
                 <Button
                   disabled={
-                    isSubmitting ||
-                    Object.keys(scores).length !== mockCriteria.length
+                    isSubmitting || !isComplete || Boolean(myScore?.isLocked)
                   }
                   onClick={handleSubmit}
+                  type="button"
                   variant="outline"
                 >
                   <SaveIcon className="size-4" />
@@ -334,10 +273,10 @@ function JudgeScoringComponent() {
                 <Button
                   className="gap-2"
                   disabled={
-                    isSubmitting ||
-                    Object.keys(scores).length !== mockCriteria.length
+                    isSubmitting || !isComplete || Boolean(myScore?.isLocked)
                   }
                   onClick={handleSubmit}
+                  type="button"
                 >
                   {isSubmitting ? "Submitting..." : "Submit Score"}
                   <ChevronRightIcon className="size-4" />
@@ -351,42 +290,148 @@ function JudgeScoringComponent() {
   );
 }
 
+function SubmissionOverview({
+  assignment,
+  submission,
+  totalScore,
+}: {
+  assignment: AssignmentSummary;
+  submission:
+    | Awaited<
+        ReturnType<typeof client.assignments.getAssignedSubmission>
+      >["submission"]
+    | undefined;
+  totalScore: number;
+}) {
+  const statusMeta = getAssignmentStatusMeta(assignment.status);
+
+  const links = [
+    {
+      icon: CodeIcon,
+      label: "Repository",
+      url: submission?.repositoryUrl ?? null,
+    },
+    {
+      icon: GlobeIcon,
+      label: "Live Demo",
+      url: submission?.liveDemoUrl ?? null,
+    },
+    {
+      icon: VideoIcon,
+      label: "Video",
+      url: submission?.demoVideoUrl ?? null,
+    },
+  ];
+
+  return (
+    <Card variant="default">
+      <CardHeader>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+              {submission?.trackId ? (
+                <Badge variant="subtle">{submission.trackId}</Badge>
+              ) : null}
+            </div>
+            <h2 className="font-bold font-display text-foreground text-xl">
+              {submission?.name ?? "Loading..."}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <p className="font-bold font-display text-3xl text-primary">
+                {totalScore.toFixed(1)}
+              </p>
+              <p className="text-muted-foreground text-sm">Weighted Total</p>
+            </div>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {links.map((item) => (
+            <div className="rounded-lg bg-muted/30 p-3" key={item.label}>
+              <div className="mb-1 flex items-center gap-2 text-muted-foreground text-sm">
+                <item.icon className="size-4" />
+                <span>{item.label}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{item.url ? "Linked" : "—"}</span>
+                {item.url ? (
+                  <a
+                    className="text-primary text-sm hover:underline"
+                    href={item.url}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    View <ExternalLinkIcon className="ml-1 size-3.5" />
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          <div className="rounded-lg bg-muted/30 p-3">
+            <div className="mb-1 flex items-center gap-2 text-muted-foreground text-sm">
+              <CheckCircleIcon className="size-4" />
+              <span>Team</span>
+            </div>
+            <span className="font-medium">
+              {submission?.teamId ? "Team" : "Individual"}
+            </span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function getAssignmentStatusMeta(status: string): {
+  icon: typeof AlertCircleIcon;
+  label: string;
+  variant: "outline" | "success" | "warning";
+} {
+  switch (status) {
+    case "in_progress": {
+      return { icon: ClockIcon, label: "In Progress", variant: "warning" };
+    }
+    case "completed": {
+      return { icon: CheckCircleIcon, label: "Scored", variant: "success" };
+    }
+    default: {
+      return { icon: AlertCircleIcon, label: "Pending", variant: "outline" };
+    }
+  }
+}
+
 function AssignmentSidebarItem({
   assignment,
   isSelected,
-  onClick,
+  onSelect,
 }: {
-  assignment: {
-    id: string;
-    status: string;
-    submissionId: string;
-    trackId: string | null;
-  };
+  assignment: AssignmentSummary;
   isSelected: boolean;
-  onClick: () => void;
+  onSelect: (id: string) => void;
 }) {
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case "pending":
-        return { variant: "outline" as const, icon: AlertCircleIcon };
-      case "in_progress":
-        return { variant: "warning" as const, icon: ClockIcon };
-      case "completed":
-        return { variant: "success" as const, icon: CheckCircleIcon };
-      default:
-        return { variant: "default" as const, icon: AlertCircleIcon };
-    }
-  };
-  const config = getStatusConfig(assignment.status);
+  const config = getAssignmentStatusMeta(assignment.status);
+  const Icon = config.icon;
+
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const { assignmentId } = event.currentTarget.dataset;
+      if (assignmentId) {
+        onSelect(assignmentId);
+      }
+    },
+    [onSelect]
+  );
 
   return (
     <button
-      className={`flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors ${
-        isSelected
-          ? "border border-primary bg-primary/10 text-primary"
-          : "text-foreground hover:bg-muted"
-      }`}
-      onClick={onClick}
+      className={`flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors ${isSelected ? "border border-primary bg-primary/10 text-primary" : "text-foreground hover:bg-muted"}`}
+      data-assignment-id={assignment.id}
+      onClick={handleClick}
+      type="button"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">
@@ -397,7 +442,7 @@ function AssignmentSidebarItem({
         </p>
       </div>
       <Badge className="gap-1" variant={config.variant}>
-        <config.icon className="size-3" />
+        <Icon className="size-3" />
         {assignment.status}
       </Badge>
     </button>
@@ -407,30 +452,42 @@ function AssignmentSidebarItem({
 function ScoringCriterion({
   criterion,
   score,
+  disabled,
   onChange,
 }: {
-  criterion: {
-    id: string;
-    name: string;
-    description: string;
-    weight: number;
-    minScore: number;
-    maxScore: number;
-  };
+  criterion: RubricCriterion;
+  disabled: boolean;
   score: number | undefined;
-  onChange: (score: number) => void;
+  onChange: (criterionId: string, score: number) => void;
 }) {
+  const options = Array.from(
+    { length: criterion.maxScore - criterion.minScore + 1 },
+    (_, i) => criterion.minScore + i
+  );
+
+  const handleClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const { criterionId, value } = event.currentTarget.dataset;
+      if (criterionId && value) {
+        onChange(criterionId, Number(value));
+      }
+    },
+    [onChange]
+  );
+
   return (
     <div className="rounded-lg bg-muted/30 p-4">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="mb-1 flex items-center gap-2">
             <h4 className="font-medium text-foreground">{criterion.name}</h4>
-            <Badge variant="subtle">{criterion.weight}% weight</Badge>
+            <Badge variant="subtle">{Number(criterion.weight)}% weight</Badge>
           </div>
-          <p className="text-muted-foreground text-sm">
-            {criterion.description}
-          </p>
+          {criterion.description ? (
+            <p className="text-muted-foreground text-sm">
+              {criterion.description}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2 font-bold font-display text-lg text-primary">
           {score ?? "—"}
@@ -438,18 +495,15 @@ function ScoringCriterion({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {Array.from(
-          { length: criterion.maxScore - criterion.minScore + 1 },
-          (_, i) => criterion.minScore + i
-        ).map((value) => (
+        {options.map((value) => (
           <button
-            className={`flex h-10 w-10 items-center justify-center rounded-lg font-medium text-sm transition-all ${
-              score === value
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/50"
-            }`}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg font-medium text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${score === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/50"}`}
+            data-criterion-id={criterion.id}
+            data-value={value}
+            disabled={disabled}
             key={value}
-            onClick={() => onChange(value)}
+            onClick={handleClick}
+            type="button"
           >
             {value}
           </button>
@@ -466,8 +520,8 @@ function ScoringSkeleton() {
         <aside className="lg:col-span-1">
           <Card variant="default">
             <CardContent className="space-y-2 pt-0">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton className="h-12 w-full" key={i} />
+              {["a", "b", "c", "d", "e"].map((slot) => (
+                <Skeleton className="h-12 w-full" key={slot} />
               ))}
             </CardContent>
           </Card>
@@ -477,16 +531,16 @@ function ScoringSkeleton() {
             <CardContent className="space-y-4 pt-0">
               <Skeleton className="h-24 w-full" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton className="h-20" key={i} />
+                {["a", "b", "c", "d"].map((slot) => (
+                  <Skeleton className="h-20" key={slot} />
                 ))}
               </div>
             </CardContent>
           </Card>
           <Card variant="default">
             <CardContent className="space-y-6 pt-0">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton className="h-24" key={i} />
+              {["a", "b", "c"].map((slot) => (
+                <Skeleton className="h-24" key={slot} />
               ))}
             </CardContent>
           </Card>
@@ -495,5 +549,3 @@ function ScoringSkeleton() {
     </div>
   );
 }
-
-import { toast } from "sonner";

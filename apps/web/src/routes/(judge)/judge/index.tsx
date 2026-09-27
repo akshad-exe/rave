@@ -24,7 +24,7 @@ function JudgeDashboardComponent() {
   const { data: myAssignments, status: assignmentsStatus } = useQuery(
     orpc.assignments.myAssignments.queryOptions({ eventId: "" })
   );
-  const { data: myProgress, status: progressStatus } = useQuery(
+  const { data: myProgress } = useQuery(
     orpc.assignments.myProgress.queryOptions({ eventId: "" })
   );
 
@@ -33,8 +33,6 @@ function JudgeDashboardComponent() {
   const inProgress = myProgress?.in_progress ?? 0;
   const pending = myProgress?.pending ?? 0;
   const completionPercent = myProgress?.completionPercent ?? 0;
-
-  const hasAssignments = Boolean(myAssignments && myAssignments.length > 0);
 
   return (
     <div className="space-y-8">
@@ -160,8 +158,8 @@ function renderUpcomingDeadlines(
   if (assignmentsStatus === "pending") {
     return (
       <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <AssignmentRowSkeleton key={`skeleton-${i}`} />
+        {(["a", "b", "c"] as const).map((slot) => (
+          <AssignmentRowSkeleton key={slot} />
         ))}
       </div>
     );
@@ -334,7 +332,3 @@ function ActionCard({
     </Card>
   );
 }
-
-export const Route = createFileRoute("/(judge)/judge/")({
-  component: JudgeDashboardComponent,
-});

@@ -27,9 +27,18 @@ import {
   TagIcon,
   TrophyIcon,
 } from "lucide-react";
-import { useState } from "react";
+import type * as React from "react";
+import { useCallback, useEffect, useState } from "react";
+
+const PAGE_SIZE = 12;
+const SKELETON_SLOTS = ["a", "b", "c", "d", "e", "f", "g", "h"] as const;
+
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type GalleryItem = Awaited<
+  ReturnType<typeof client.submissions.gallery>
+>["submissions"][number];
 
 export const Route = createFileRoute("/gallery/")({
   component: GalleryComponent,
@@ -42,39 +51,70 @@ function GalleryComponent() {
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const { data, isLoading, isError } = useQuery(
+  const { data, status, isError } = useQuery(
     orpc.submissions.gallery.queryOptions({
       eventId: "", // Will use default public event
       search: debouncedSearch || undefined,
       trackId: trackFilter || undefined,
       sortBy,
       page,
-      limit: 12,
+      limit: PAGE_SIZE,
     })
   );
 
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    const timeout = setTimeout(() => {
-      setDebouncedSearch(value);
+  // The previous version returned a cleanup function from the change handler,
+  // where React discards it, so no timeout was ever cleared. Debounce properly.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
       setPage(1);
     }, 300);
-    return () => clearTimeout(timeout);
-  };
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const handleSearchChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(event.target.value);
+    },
+    []
+  );
+
+  const handleRetry = useCallback(() => {
+    window.location.reload();
+  }, []);
+
+  const handleClearFilters = useCallback(() => {
+    setSearch("");
+    setTrackFilter("");
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    setPage((p) => p + 1);
+  }, []);
 
   const submissions = data?.submissions ?? [];
-  const hasMore = submissions.length === 12;
+  const hasMore = submissions.length === PAGE_SIZE;
+  const hasFilters = Boolean(search || trackFilter);
 
   if (isError) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <p className="text-error">Failed to load gallery. Please try again.</p>
-        <Button className="mt-4" onClick={() => window.location.reload()}>
+        <Button className="mt-4" onClick={handleRetry} type="button">
           Retry
         </Button>
       </div>
     );
   }
+
+  const body = renderGalleryBody({
+    hasFilters,
+    hasMore,
+    isPending: status === "pending" && !data,
+    onClearFilters: handleClearFilters,
+    onLoadMore: handleLoadMore,
+    submissions,
+  });
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -93,7 +133,7 @@ function GalleryComponent() {
           <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-10"
-            onChange={(e) => handleSearchChange(e.target.value)}
+            onChange={handleSearchChange}
             placeholder="Search projects..."
             value={search}
           />
@@ -130,79 +170,85 @@ function GalleryComponent() {
       </div>
 
       {/* Gallery Grid */}
-      {isLoading && !data ? (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <ProjectCardSkeleton key={i} />
-          ))}
-        </div>
-      ) : submissions.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia>
-              <TrophyIcon className="size-6" />
-            </EmptyMedia>
-            <EmptyTitle>No projects found</EmptyTitle>
-            <EmptyDescription>
-              {search || trackFilter
-                ? "Try adjusting your search or filters"
-                : "No projects have been submitted yet"}
-            </EmptyDescription>
-          </EmptyHeader>
-          {(search || trackFilter) && (
-            <EmptyAction>
-              <Button
-                onClick={() => {
-                  setSearch("");
-                  setTrackFilter("");
-                }}
-                variant="outline"
-              >
-                Clear filters
-              </Button>
-            </EmptyAction>
-          )}
-        </Empty>
-      ) : (
-        <>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {submissions.map((project) => (
-              <ProjectCard key={project.id} project={project} />
-            ))}
-          </div>
-
-          {hasMore && (
-            <div className="mt-8 text-center">
-              <Button
-                className="w-full sm:w-auto"
-                disabled={isLoading}
-                onClick={() => setPage((p) => p + 1)}
-                variant="outline"
-              >
-                Load more
-              </Button>
-            </div>
-          )}
-        </>
-      )}
+      {body}
     </div>
   );
 }
 
-function ProjectCard({
-  project,
+function renderGalleryBody({
+  submissions,
+  hasMore,
+  hasFilters,
+  isPending,
+  onClearFilters,
+  onLoadMore,
 }: {
-  project: {
-    id: string;
-    name: string;
-    tagline: string | null;
-    teamId: string | null;
-    trackId: string | null;
-    submittedAt: string | null;
-    repositoryUrl: string | null;
-    thumbnailUrl: string | null;
-  };
+  hasFilters: boolean;
+  hasMore: boolean;
+  isPending: boolean;
+  onClearFilters: () => void;
+  onLoadMore: () => void;
+  submissions: GalleryItem[];
 }) {
+  if (isPending) {
+    return (
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {SKELETON_SLOTS.map((slot) => (
+          <ProjectCardSkeleton key={slot} />
+        ))}
+      </div>
+    );
+  }
+
+  if (submissions.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia>
+            <TrophyIcon className="size-6" />
+          </EmptyMedia>
+          <EmptyTitle>No projects found</EmptyTitle>
+          <EmptyDescription>
+            {hasFilters
+              ? "Try adjusting your search or filters"
+              : "No projects have been submitted yet"}
+          </EmptyDescription>
+        </EmptyHeader>
+        {hasFilters ? (
+          <EmptyAction>
+            <Button onClick={onClearFilters} type="button" variant="outline">
+              Clear filters
+            </Button>
+          </EmptyAction>
+        ) : null}
+      </Empty>
+    );
+  }
+
+  return (
+    <>
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {submissions.map((project) => (
+          <ProjectCard key={project.id} project={project} />
+        ))}
+      </div>
+      {hasMore ? (
+        <div className="mt-8 text-center">
+          <Button
+            className="w-full sm:w-auto"
+            onClick={onLoadMore}
+            type="button"
+            variant="outline"
+          >
+            Load more
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ProjectCard({ project }: { project: GalleryItem }) {
   return (
     <Link className="block" to={`/submissions/${project.id}`}>
       <Card className="flex h-full flex-col" variant="interactive">
@@ -211,39 +257,41 @@ function ProjectCard({
             <img
               alt=""
               className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+              height={360}
               src={project.thumbnailUrl}
+              width={640}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-muted-foreground/50">
               <CodeIcon className="size-12" />
             </div>
           )}
-          {project.submittedAt && (
+          {project.submittedAt ? (
             <div className="absolute bottom-2 left-2">
               <Badge className="text-xs" variant="subtle">
                 Submitted {formatRelativeTime(project.submittedAt)}
               </Badge>
             </div>
-          )}
+          ) : null}
         </div>
 
         <CardContent className="flex flex-1 flex-col p-4">
           <h3 className="line-clamp-1 font-semibold text-foreground">
             {project.name}
           </h3>
-          {project.tagline && (
+          {project.tagline ? (
             <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
               {project.tagline}
             </p>
-          )}
+          ) : null}
 
           <div className="mt-auto flex flex-wrap gap-2 pt-3 text-muted-foreground text-xs">
-            {project.trackId && (
+            {project.trackId ? (
               <span className="flex items-center gap-1 rounded bg-muted px-2 py-0.5">
                 <TagIcon className="size-3" />
                 {project.trackId}
               </span>
-            )}
+            ) : null}
             <span className="flex items-center gap-1">
               <CalendarIcon className="size-3" />
               {project.submittedAt
@@ -254,7 +302,7 @@ function ProjectCard({
 
           <div className="mt-3 flex items-center justify-between">
             <div className="flex gap-1.5">
-              {project.repositoryUrl && (
+              {project.repositoryUrl ? (
                 <a
                   className="text-muted-foreground transition-colors hover:text-primary"
                   href={project.repositoryUrl}
@@ -263,7 +311,7 @@ function ProjectCard({
                 >
                   <CodeIcon className="size-4" />
                 </a>
-              )}
+              ) : null}
             </div>
           </div>
         </CardContent>

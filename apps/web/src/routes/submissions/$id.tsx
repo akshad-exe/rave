@@ -27,6 +27,24 @@ import {
 import { formatRelativeTime } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 
+function getStatusConfig(status: string): {
+  icon: typeof AlertCircleIcon;
+  label: string;
+  variant: "outline" | "success" | "default";
+} {
+  switch (status) {
+    case "draft": {
+      return { icon: AlertCircleIcon, label: "Draft", variant: "outline" };
+    }
+    case "submitted": {
+      return { icon: CheckCircleIcon, label: "Submitted", variant: "success" };
+    }
+    default: {
+      return { icon: AlertCircleIcon, label: status, variant: "default" };
+    }
+  }
+}
+
 export const Route = createFileRoute("/submissions/$id")({
   component: SubmissionDetailComponent,
 });
@@ -35,11 +53,11 @@ function SubmissionDetailComponent() {
   const { id } = useParams({ from: "/submissions/$id", strict: true });
   const {
     data: submission,
-    isLoading,
+    status: submissionStatus,
     isError,
   } = useQuery(orpc.submissions.get.queryOptions({ submissionId: id }));
 
-  if (isLoading) {
+  if (submissionStatus === "pending") {
     return <SubmissionDetailSkeleton />;
   }
 
@@ -67,28 +85,6 @@ function SubmissionDetailComponent() {
     );
   }
 
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case "draft":
-        return {
-          label: "Draft",
-          variant: "outline" as const,
-          icon: AlertCircleIcon,
-        };
-      case "submitted":
-        return {
-          label: "Submitted",
-          variant: "success" as const,
-          icon: CheckCircleIcon,
-        };
-      default:
-        return {
-          label: status,
-          variant: "default" as const,
-          icon: AlertCircleIcon,
-        };
-    }
-  };
   const config = getStatusConfig(submission.status);
   const Icon = config.icon;
 
@@ -103,24 +99,24 @@ function SubmissionDetailComponent() {
                 <Icon className="size-3" />
                 {config.label}
               </Badge>
-              {submission.trackId && (
+              {submission.trackId ? (
                 <Badge className="gap-1.5" variant="subtle">
                   <TagIcon className="size-3" />
                   {submission.trackId}
                 </Badge>
-              )}
+              ) : null}
             </div>
             <h1 className="font-bold font-display text-3xl text-foreground">
               {submission.name}
             </h1>
-            {submission.tagline && (
+            {submission.tagline ? (
               <p className="mt-2 text-lg text-muted-foreground">
                 {submission.tagline}
               </p>
-            )}
+            ) : null}
           </div>
           <div className="flex gap-2">
-            {submission.liveDemoUrl && (
+            {submission.liveDemoUrl ? (
               <a
                 href={submission.liveDemoUrl}
                 rel="noopener noreferrer"
@@ -131,8 +127,8 @@ function SubmissionDetailComponent() {
                   Live Demo
                 </Button>
               </a>
-            )}
-            {submission.repositoryUrl && (
+            ) : null}
+            {submission.repositoryUrl ? (
               <a
                 href={submission.repositoryUrl}
                 rel="noopener noreferrer"
@@ -143,7 +139,7 @@ function SubmissionDetailComponent() {
                   Repository
                 </Button>
               </a>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -181,20 +177,22 @@ function SubmissionDetailComponent() {
       </div>
 
       {/* Thumbnail */}
-      {submission.thumbnailUrl && (
+      {submission.thumbnailUrl ? (
         <div className="mb-8 aspect-video w-full overflow-hidden rounded-lg">
           <img
             alt=""
             className="h-full w-full object-cover"
+            height={720}
             src={submission.thumbnailUrl}
+            width={1280}
           />
         </div>
-      )}
+      ) : null}
 
       {/* Content Sections */}
       <div className="space-y-8">
         {/* Description */}
-        {submission.description && (
+        {submission.description ? (
           <section>
             <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
               Description
@@ -203,7 +201,7 @@ function SubmissionDetailComponent() {
               {submission.description}
             </div>
           </section>
-        )}
+        ) : null}
 
         {/* Links */}
         <section>
@@ -211,7 +209,7 @@ function SubmissionDetailComponent() {
             Links
           </h2>
           <div className="flex flex-wrap gap-3">
-            {submission.repositoryUrl && (
+            {submission.repositoryUrl ? (
               <Link
                 rel="noopener noreferrer"
                 target="_blank"
@@ -223,8 +221,8 @@ function SubmissionDetailComponent() {
                   <ExternalLinkIcon className="size-3.5" />
                 </Button>
               </Link>
-            )}
-            {submission.liveDemoUrl && (
+            ) : null}
+            {submission.liveDemoUrl ? (
               <Link
                 rel="noopener noreferrer"
                 target="_blank"
@@ -236,8 +234,8 @@ function SubmissionDetailComponent() {
                   <ExternalLinkIcon className="size-3.5" />
                 </Button>
               </Link>
-            )}
-            {submission.demoVideoUrl && (
+            ) : null}
+            {submission.demoVideoUrl ? (
               <Link
                 rel="noopener noreferrer"
                 target="_blank"
@@ -249,60 +247,65 @@ function SubmissionDetailComponent() {
                   <ExternalLinkIcon className="size-3.5" />
                 </Button>
               </Link>
-            )}
+            ) : null}
           </div>
         </section>
 
         {/* Gallery */}
-        {submission.galleryImageUrls &&
-          submission.galleryImageUrls.length > 0 && (
-            <section>
-              <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
-                Gallery
-              </h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {submission.galleryImageUrls.map((url, index) => (
-                  <div
-                    className="aspect-video w-full overflow-hidden rounded-lg"
-                    key={index}
-                  >
-                    <img
-                      alt={`Gallery image ${index + 1}`}
-                      className="h-full w-full object-cover"
-                      src={url}
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+        {submission.galleryImageUrls.length > 0 ? (
+          <section>
+            <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
+              Gallery
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {submission.galleryImageUrls.map((url) => (
+                <div
+                  className="aspect-video w-full overflow-hidden rounded-lg"
+                  key={url}
+                >
+                  <img
+                    alt="Project screenshot"
+                    className="h-full w-full object-cover"
+                    height={360}
+                    src={url}
+                    width={640}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {/* Tech Stack */}
-        {submission.techTags && submission.techTags.length > 0 && (
+        {submission.techTags.length > 0 ? (
           <section>
             <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
               Tech Stack
             </h2>
             <div className="flex flex-wrap gap-2">
-              {submission.techTags.map((tag, index) => (
-                <Badge className="gap-1.5" key={index} variant="subtle">
+              {submission.techTags.map((tag) => (
+                <Badge className="gap-1.5" key={tag} variant="subtle">
                   <CodeIcon className="size-3" />
                   {tag}
                 </Badge>
               ))}
             </div>
           </section>
-        )}
+        ) : null}
 
         {/* Custom Answers */}
-        {submission.customAnswers && submission.customAnswers.length > 0 && (
+        {submission.customAnswers.length > 0 ? (
           <section>
             <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
               Additional Information
             </h2>
             <div className="space-y-4">
-              {submission.customAnswers.map((answer, index) => (
-                <Card className="p-4" key={index} variant="borderless">
+              {submission.customAnswers.map((answer) => (
+                <Card
+                  className="p-4"
+                  key={answer.questionId}
+                  variant="borderless"
+                >
                   <p className="font-medium text-foreground">
                     {answer.questionId}
                   </p>
@@ -313,7 +316,7 @@ function SubmissionDetailComponent() {
               ))}
             </div>
           </section>
-        )}
+        ) : null}
       </div>
     </div>
   );

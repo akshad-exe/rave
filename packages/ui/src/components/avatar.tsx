@@ -14,11 +14,18 @@ function Avatar({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function AvatarImage({ className, ...props }: React.ComponentProps<"img">) {
+function AvatarImage({
+  alt = "",
+  className,
+  ...props
+}: React.ComponentProps<"img">) {
   return (
     <img
+      alt={alt}
       className={cn("aspect-square h-full w-full object-cover", className)}
       data-slot="avatar-image"
+      height={40}
+      width={40}
       {...props}
     />
   );

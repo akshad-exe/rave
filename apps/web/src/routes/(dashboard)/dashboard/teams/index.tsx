@@ -167,8 +167,6 @@ function TeamCardSkeleton() {
   );
 }
 
-export { TeamsComponent };
-
 export const Route = createFileRoute("/(dashboard)/dashboard/teams/")({
   component: TeamsComponent,
 });

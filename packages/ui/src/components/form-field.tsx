@@ -46,9 +46,9 @@ export function FormField({
     <div className="flex flex-col gap-1.5">
       <div className="flex flex-col gap-1">
         <Label htmlFor={controls.name}>{label}</Label>
-        {description && (
+        {description ? (
           <p className="text-muted-foreground text-sm">{description}</p>
-        )}
+        ) : null}
       </div>
       {asTextarea ? (
         <Textarea
@@ -80,8 +80,10 @@ export function FormField({
           role="alert"
         >
           <svg
+            aria-hidden="true"
             className="size-4"
             fill="none"
+            focusable="false"
             stroke="currentColor"
             strokeWidth="2"
             viewBox="0 0 24 24"
