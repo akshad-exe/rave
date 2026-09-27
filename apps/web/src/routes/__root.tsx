@@ -24,17 +24,18 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "rave",
+        title: "rave — Hackathon Platform",
       },
       {
         name: "description",
-        content: "rave is a web application",
+        content:
+          "A hackathon platform for builders, by builders. Discover events, form teams, build projects, win prizes.",
       },
     ],
     links: [
       {
         rel: "icon",
-        href: "/favicon.ico",
+        href: "/favicon.svg",
       },
     ],
   }),
@@ -48,13 +49,22 @@ function RootComponent() {
         attribute="class"
         defaultTheme="dark"
         disableTransitionOnChange
-        storageKey="vite-ui-theme"
+        storageKey="rave-theme"
       >
-        <div className="grid h-svh grid-rows-[auto_1fr]">
+        <div className="flex min-h-screen flex-col">
           <Header />
-          <Outlet />
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <footer className="border-border border-t bg-muted/30">
+            <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+              <p className="text-center text-muted-foreground text-sm">
+                Built for hackers, by hackers.
+              </p>
+            </div>
+          </footer>
         </div>
-        <Toaster richColors />
+        <Toaster position="top-right" richColors />
       </ThemeProvider>
       <TanStackRouterDevtools position="bottom-left" />
       <ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
