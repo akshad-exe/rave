@@ -72,4 +72,6 @@ export function createAuth(
   });
 }
 
+export type AuthInstance = ReturnType<typeof createAuth>;
+
 export type Session = ReturnType<typeof createAuth>["$Infer"]["Session"];
