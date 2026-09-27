@@ -2,6 +2,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import { logger } from "./composition/singletons";
 import { registerAuthRoute } from "./features/auth/route";
 import { registerHealthRoute } from "./features/health/route";
+import { registerPortalRoutes } from "./features/portal/route";
 import { registerCors } from "./plugins/cors";
 import { registerErrorHandler } from "./plugins/error-handler";
 import { registerOrpc } from "./plugins/orpc";
@@ -25,6 +26,7 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   registerOrpc(fastify);
   registerAuthRoute(fastify);
   registerHealthRoute(fastify);
+  registerPortalRoutes(fastify);
 
   return fastify;
 }

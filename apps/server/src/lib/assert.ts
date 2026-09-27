@@ -1,7 +1,14 @@
 import type { ServiceContext } from "@rave/api/context";
 import { forbidden, notFound, unauthorized } from "@rave/api/errors";
-import { event, eventOrganizer } from "@rave/db";
+import { event, eventOrganizer, userProfile } from "@rave/db";
 import { and, eq } from "drizzle-orm";
+
+export type UserRole =
+  | "admin"
+  | "judge"
+  | "organizer"
+  | "participant"
+  | "visitor";
 
 /** Return the first row of a select, throwing `notFound` if missing. */
 export function requireRow<T>(rows: T[], message: string): T {
@@ -17,6 +24,46 @@ export function requireUserId(ctx: ServiceContext): string {
   const userId = ctx.session?.user?.id;
   if (!userId) {
     throw unauthorized();
+  }
+  return userId;
+}
+
+/**
+ * Resolve the current user's role from `user_profile`.
+ *
+ * Defaults to `participant`, matching the column default, for users who exist
+ * without a profile row.
+ */
+export async function resolveRole(ctx: ServiceContext): Promise<UserRole> {
+  const userId = ctx.session?.user?.id;
+  if (!userId) {
+    return "visitor";
+  }
+
+  const rows = await ctx.db
+    .select({ role: userProfile.role })
+    .from(userProfile)
+    .where(eq(userProfile.userId, userId));
+
+  return (rows[0]?.role as UserRole | undefined) ?? "participant";
+}
+
+/**
+ * Require one exact role and return the caller's user id.
+ *
+ * Unlike the oRPC `requireRole` middleware, this does not use the role
+ * hierarchy. Judge-only views use it so that an organizer's higher rank does
+ * not silently grant access to a judge's own-score view.
+ */
+export async function requireExactRole(
+  ctx: ServiceContext,
+  role: UserRole
+): Promise<string> {
+  const userId = requireUserId(ctx);
+  const actual = await resolveRole(ctx);
+
+  if (actual !== role) {
+    throw forbidden(`Requires the ${role} role`);
   }
   return userId;
 }
