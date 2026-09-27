@@ -5,10 +5,8 @@ import type { FormEvent } from "react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import z from "zod";
-
+import { FormField } from "@/components/form-field";
 import { authClient } from "@/lib/auth-client";
-
-import { FormField } from "./form-field";
 import Loader from "./loader";
 
 const selectSubmitState = (state: {
@@ -78,62 +76,63 @@ export default function SignUpForm({
   }
 
   return (
-    <div className="mx-auto mt-10 w-full max-w-md p-6">
-      <h1 className="mb-6 text-center font-bold text-3xl">Create Account</h1>
+    <div className="w-full">
+      <div className="mb-8 text-center">
+        <h1 className="font-bold font-display text-2xl text-foreground sm:text-3xl">
+          Create Account
+        </h1>
+        <p className="mt-2 text-muted-foreground text-sm">
+          Start building at hackathons
+        </p>
+      </div>
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div>
-          <form.Field name="name">
-            {(field) => (
-              <FormField
-                controls={{
-                  errors: field.state.meta.errors,
-                  name: field.name,
-                  onBlur: field.handleBlur,
-                  onChange: field.handleChange,
-                  value: field.state.value,
-                }}
-                label="Name"
-              />
-            )}
-          </form.Field>
-        </div>
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        <form.Field name="name">
+          {(field) => (
+            <FormField
+              controls={{
+                errors: field.state.meta.errors,
+                name: field.name,
+                onBlur: field.handleBlur,
+                onChange: field.handleChange,
+                value: field.state.value,
+              }}
+              label="Name"
+            />
+          )}
+        </form.Field>
 
-        <div>
-          <form.Field name="email">
-            {(field) => (
-              <FormField
-                controls={{
-                  errors: field.state.meta.errors,
-                  name: field.name,
-                  onBlur: field.handleBlur,
-                  onChange: field.handleChange,
-                  value: field.state.value,
-                }}
-                label="Email"
-                type="email"
-              />
-            )}
-          </form.Field>
-        </div>
+        <form.Field name="email">
+          {(field) => (
+            <FormField
+              controls={{
+                errors: field.state.meta.errors,
+                name: field.name,
+                onBlur: field.handleBlur,
+                onChange: field.handleChange,
+                value: field.state.value,
+              }}
+              label="Email"
+              type="email"
+            />
+          )}
+        </form.Field>
 
-        <div>
-          <form.Field name="password">
-            {(field) => (
-              <FormField
-                controls={{
-                  errors: field.state.meta.errors,
-                  name: field.name,
-                  onBlur: field.handleBlur,
-                  onChange: field.handleChange,
-                  value: field.state.value,
-                }}
-                label="Password"
-                type="password"
-              />
-            )}
-          </form.Field>
-        </div>
+        <form.Field name="password">
+          {(field) => (
+            <FormField
+              controls={{
+                errors: field.state.meta.errors,
+                name: field.name,
+                onBlur: field.handleBlur,
+                onChange: field.handleChange,
+                value: field.state.value,
+              }}
+              label="Password"
+              type="password"
+            />
+          )}
+        </form.Field>
 
         <form.Subscribe selector={selectSubmitState}>
           {({ canSubmit, isSubmitting }) => (
@@ -142,21 +141,22 @@ export default function SignUpForm({
               disabled={!canSubmit || isSubmitting}
               type="submit"
             >
-              {isSubmitting ? "Submitting..." : "Sign Up"}
+              {isSubmitting ? "Creating account..." : "Create Account"}
             </Button>
           )}
         </form.Subscribe>
       </form>
 
-      <div className="mt-4 text-center">
+      <p className="mt-6 text-center text-muted-foreground text-sm">
+        Already have an account?{" "}
         <Button
-          className="text-indigo-600 hover:text-indigo-800"
+          className="text-primary hover:text-primary/80"
           onClick={onSwitchToSignIn}
           variant="link"
         >
-          Already have an account? Sign In
+          Sign In
         </Button>
-      </div>
+      </p>
     </div>
   );
 }
