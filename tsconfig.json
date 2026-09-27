@@ -1,0 +1,6 @@
+{
+  "extends": "@rave/config/tsconfig.base.json",
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}
