@@ -63,6 +63,31 @@ bun run check-types   # tsc across the workspace
 bun run check         # Biome / Ultracite lint + format
 ```
 
+## Seeded demo data
+
+The server seeds `docs/dogfood/fixtures.json` on every boot. Inserts ignore
+conflicts, so a fresh volume gets the fixture and an existing one is left
+alone. Two fixture rows cannot be stored and are reported on startup:
+
+- `prj_41` — its team already submitted `prj_07`, and a team may submit once
+  per event.
+- 4 scores for `prj_41` — a score hangs off a submission, so these have nothing
+  to attach to.
+
+The server also signs in as one organizer, two judges, and one participant, and
+prints a `Cookie:` header per role. Those headers are what the acceptance
+checker uses, so `.dogfood.toml` is generated rather than hand-written:
+
+```bash
+bun run seed:config   # writes .dogfood.toml at the repo root
+python3 docs/dogfood/specs/run.py .dogfood.toml
+```
+
+Use `DOGFOOD_BASE_URL` if the portal is not on `http://localhost:3000`; set the
+same value in `PORT` for the server. The `fixtures.json` symlink at the repo
+root points at `docs/dogfood/fixtures.json` so the checker finds the fixture
+without a `--fixtures` flag.
+
 ## Architecture
 
 A Bun monorepo managed with Turborepo.
