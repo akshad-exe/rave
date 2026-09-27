@@ -22,7 +22,11 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { formatRelativeTime } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type SubmissionRow = Awaited<
+  ReturnType<typeof client.submissions.mySubmissions>
+>[number];
 
 export const Route = createFileRoute("/(dashboard)/dashboard/submissions/")({
   component: SubmissionsComponent,
@@ -30,7 +34,7 @@ export const Route = createFileRoute("/(dashboard)/dashboard/submissions/")({
 
 function SubmissionsComponent() {
   const { data: mySubmissions, status: queryStatus } = useQuery(
-    orpc.submissions.mySubmissions.queryOptions()
+    orpc.submissions.mySubmissions.queryOptions({ input: {} })
   );
 
   const getStatusConfig = useCallback((status: string) => {
@@ -164,16 +168,7 @@ interface SubmissionRowProps {
     variant: "default" | "outline" | "success" | "error";
     icon: React.ComponentType<{ className?: string }>;
   };
-  submission: {
-    id: string;
-    name: string;
-    status: string;
-    submittedAt: string | null;
-    trackId: string | null;
-    description: string | null;
-    repositoryUrl: string | null;
-    liveDemoUrl: string | null;
-  };
+  submission: SubmissionRow;
 }
 
 function SubmissionRow({ submission, getStatusConfig }: SubmissionRowProps) {
@@ -211,7 +206,7 @@ function SubmissionRow({ submission, getStatusConfig }: SubmissionRowProps) {
             <Icon className="size-3" />
             {config.label}
           </Badge>
-          <Link to={`/submissions/${submission.id}`}>
+          <Link params={{ id: submission.id }} to="/submissions/$id">
             <Button className="gap-1.5" size="sm" variant="ghost">
               <EditIcon className="size-3.5" />
               Edit

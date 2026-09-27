@@ -16,7 +16,7 @@ import { orpc } from "@/utils/orpc";
 
 function TeamsComponent() {
   const { data: myTeams, status } = useQuery(
-    orpc.teams.listByEvent.queryOptions({ eventId: "" })
+    orpc.teams.listByEvent.queryOptions({ input: { eventId: "" } })
   );
 
   const skeletonKeys = Array.from({ length: 3 }, (_, i) => `skeleton-${i}`);

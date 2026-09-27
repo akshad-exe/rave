@@ -130,7 +130,11 @@ function HomeComponent() {
                 <Badge variant="outline">Online + SF Venue</Badge>
               </div>
               <div className="mt-8 flex gap-4">
-                <Link to="/hackathons/sample-hack-2026">
+                <Link
+                  params={{ slug: "sample-hack-2026" }}
+                  search={{ tab: "overview" }}
+                  to="/hackathons/$slug"
+                >
                   <Button className="gap-2" size="lg">
                     View Details
                     <CodeIcon className="size-4" />
@@ -173,7 +177,7 @@ function HomeComponent() {
             time.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link to="/register">
+            <Link to="/login">
               <Button className="w-full gap-2 sm:w-auto" size="lg">
                 <UsersIcon className="size-4" />
                 Create Free Account

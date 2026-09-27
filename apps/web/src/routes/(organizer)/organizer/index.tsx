@@ -20,7 +20,11 @@ import {
   formatRelativeTime,
   getEventStatusConfig,
 } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type EventListItem = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
 
 export const Route = createFileRoute("/(organizer)/organizer/")({
   component: OrganizerDashboardComponent,
@@ -28,7 +32,7 @@ export const Route = createFileRoute("/(organizer)/organizer/")({
 
 function OrganizerDashboardComponent() {
   const { data: myEvents, status: eventsStatus } = useQuery(
-    orpc.events.list.queryOptions({ limit: 10 })
+    orpc.events.list.queryOptions({ input: { limit: 10 } })
   );
 
   const totalEvents = myEvents?.events?.length ?? 0;
@@ -174,7 +178,7 @@ function renderOrganizerEvents({
   events,
   isPending,
 }: {
-  events: { events: unknown[] } | undefined;
+  events: { events: EventListItem[] } | undefined;
   isPending: boolean;
 }) {
   if (isPending) {
@@ -211,23 +215,11 @@ function renderOrganizerEvents({
   );
 }
 
-function EventCard({
-  event,
-}: {
-  event: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-    startDate: string | null;
-    submissionDeadline: string | null;
-    coverImageUrl: string | null;
-  };
-}) {
+function EventCard({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
 
   return (
-    <Link className="block" to={`/organizer/events/${event.slug}`}>
+    <Link className="block" to="/organizer/events">
       <Card className="h-full" variant="interactive">
         {event.coverImageUrl ? (
           <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-t-lg">

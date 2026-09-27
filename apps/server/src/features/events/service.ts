@@ -136,6 +136,7 @@ export const eventsService: EventsService = {
 
     const rows = await ctx.db
       .select({
+        allowIndividuals: event.allowIndividuals,
         coverImageUrl: event.coverImageUrl,
         endDate: event.endDate,
         id: event.id,

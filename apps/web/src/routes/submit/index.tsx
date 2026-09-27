@@ -15,64 +15,46 @@ import {
   SelectValue,
 } from "@rave/ui/components/select";
 import { Textarea } from "@rave/ui/components/textarea";
+import type { AnyFormApi } from "@tanstack/react-form";
 import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { ChevronRightIcon, CodeIcon, GlobeIcon } from "lucide-react";
 import type * as React from "react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
-import { FormField } from "@/components/form-field";
+import { FormField, fieldControls } from "@/components/form-field";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/utils/orpc";
 
 /** Kept at module scope so the component body stays within the complexity budget. */
 const submissionSchema = z.object({
   eventId: z.string().min(1, "Select an event"),
-  teamId: z.string().optional(),
-  trackId: z.string().optional(),
+  teamId: z.string(),
+  trackId: z.string(),
   name: z.string().min(1, "Project name is required").max(120),
-  tagline: z.string().max(200).optional(),
-  description: z.string().max(20_000).optional(),
-  repositoryUrl: z.url("Invalid URL").optional().or(z.literal("")),
-  liveDemoUrl: z.url("Invalid URL").optional().or(z.literal("")),
-  demoVideoUrl: z.url("Invalid URL").optional().or(z.literal("")),
-  thumbnailUrl: z.url("Invalid URL").optional().or(z.literal("")),
-  galleryImageUrls: z.array(z.url()).max(10).default([]),
-  techTags: z.array(z.string().max(50)).max(20).default([]),
-  customAnswers: z
-    .array(z.object({ questionId: z.string(), answer: z.string().max(5000) }))
-    .default([]),
+  tagline: z.string().max(200),
+  description: z.string().max(20_000),
+  repositoryUrl: z.url("Invalid URL").or(z.literal("")),
+  liveDemoUrl: z.url("Invalid URL").or(z.literal("")),
+  demoVideoUrl: z.url("Invalid URL").or(z.literal("")),
+  thumbnailUrl: z.url("Invalid URL").or(z.literal("")),
+  galleryImageUrls: z.array(z.url()).max(10),
+  techTags: z.array(z.string().max(50)).max(20),
+  customAnswers: z.array(
+    z.object({ questionId: z.string(), answer: z.string().max(5000) })
+  ),
 });
 
-interface SubmitFormValues {
-  customAnswers: Array<{ answer: string; questionId: string }>;
-  demoVideoUrl: string;
-  description: string;
-  eventId: string;
-  galleryImageUrls: string[];
-  liveDemoUrl: string;
-  name: string;
-  repositoryUrl: string;
-  tagline: string;
-  teamId: string;
-  techTags: string[];
-  thumbnailUrl: string;
-  trackId: string;
-}
-
 /**
- * The slice of the TanStack form API these child components touch.
- * `ReturnType<typeof useForm>` is unusable here because the generic resolves
- * to `unknown` without call-site inference.
+ * The child components below only read a handful of fields, so they take
+ * TanStack's own `AnyFormApi` escape hatch rather than a hand-rolled
+ * structural type. `ReturnType<typeof useForm>` is unusable because the generic
+ * resolves to `unknown` without call-site inference, and a structural stand-in
+ * is not assignable to the real form API that `fieldControls` expects.
  */
-interface SubmitFormApi {
-  getFieldControls: <K extends keyof SubmitFormValues>(
-    name: K
-  ) => { name: string; onChange: (value: SubmitFormValues[K]) => void };
-  state: { values: SubmitFormValues };
-}
+type SubmitFormApi = AnyFormApi;
 
 function getStepCircleClass(index: number, activeStep: number): string {
   const base =
@@ -99,17 +81,25 @@ export const Route = createFileRoute("/submit/")({
 function SubmitComponent() {
   const navigate = useNavigate({ from: "/dashboard" });
   const { data: myTeam, status: teamStatus } = useQuery(
-    orpc.teams.myTeam.queryOptions({ eventId: "" })
+    orpc.teams.myTeam.queryOptions({ input: { eventId: "" } })
   );
   const { data: events } = useQuery(
-    orpc.events.list.queryOptions({ status: "submission", limit: 20 })
+    orpc.events.list.queryOptions({
+      input: { limit: 20, status: "submission" },
+    })
   );
   const { data: tracks } = useQuery(
-    orpc.tracks.list.queryOptions({ eventId: events?.events[0]?.id ?? "" })
+    orpc.tracks.list.queryOptions({
+      input: { eventId: events?.events[0]?.id ?? "" },
+    })
   );
 
   const [activeStep, setActiveStep] = useState(0);
   const steps = ["Basics", "Details", "Media", "Review"];
+
+  const createSubmission = useMutation(
+    orpc.submissions.create.mutationOptions()
+  );
 
   const form = useForm({
     defaultValues: {
@@ -128,15 +118,15 @@ function SubmitComponent() {
       customAnswers: [] as Array<{ questionId: string; answer: string }>,
     },
     onSubmit: async ({ value }) => {
-      await orpc.submissions.create.mutate(value, {
-        onSuccess: (submission) => {
-          toast.success("Draft created successfully");
-          navigate({ to: `/submissions/${submission.id}` });
-        },
-        onError: (error) => {
-          toast.error(error.message || "Failed to create submission");
-        },
-      });
+      try {
+        const submission = await createSubmission.mutateAsync(value);
+        toast.success("Draft created successfully");
+        navigate({ to: `/submissions/${submission.id}` });
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create submission"
+        );
+      }
     },
     validators: { onSubmit: submissionSchema },
   });
@@ -184,7 +174,7 @@ function SubmitComponent() {
             </CardHeader>
             <CardContent className="space-y-5">
               <FormField
-                controls={form.getFieldControls("eventId")}
+                controls={fieldControls(form, "eventId")}
                 label="Hackathon"
               >
                 <Select>
@@ -201,10 +191,7 @@ function SubmitComponent() {
                 </Select>
               </FormField>
 
-              <FormField
-                controls={form.getFieldControls("teamId")}
-                label="Team"
-              >
+              <FormField controls={fieldControls(form, "teamId")} label="Team">
                 <Select>
                   <SelectTrigger>
                     <SelectValue
@@ -227,7 +214,7 @@ function SubmitComponent() {
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("trackId")}
+                controls={fieldControls(form, "trackId")}
                 label="Track"
               >
                 <Select>
@@ -245,14 +232,14 @@ function SubmitComponent() {
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("name")}
+                controls={fieldControls(form, "name")}
                 label="Project Name"
               >
                 <Input placeholder="My Awesome Project" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("tagline")}
+                controls={fieldControls(form, "tagline")}
                 label="Tagline"
               >
                 <Input placeholder="A short, catchy description" />
@@ -282,7 +269,7 @@ function SubmitComponent() {
             <CardContent className="space-y-5">
               <FormField
                 asTextarea
-                controls={form.getFieldControls("description")}
+                controls={fieldControls(form, "description")}
                 label="Description"
               >
                 <Textarea
@@ -292,7 +279,7 @@ function SubmitComponent() {
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("techTags")}
+                controls={fieldControls(form, "techTags")}
                 label="Tech Stack"
               >
                 <div className="flex flex-wrap gap-2">
@@ -330,35 +317,35 @@ function SubmitComponent() {
             </CardHeader>
             <CardContent className="space-y-5">
               <FormField
-                controls={form.getFieldControls("repositoryUrl")}
+                controls={fieldControls(form, "repositoryUrl")}
                 label="Repository URL"
               >
                 <Input placeholder="https://github.com/username/repo" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("liveDemoUrl")}
+                controls={fieldControls(form, "liveDemoUrl")}
                 label="Live Demo URL"
               >
                 <Input placeholder="https://myproject.vercel.app" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("demoVideoUrl")}
+                controls={fieldControls(form, "demoVideoUrl")}
                 label="Demo Video URL"
               >
                 <Input placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..." />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("thumbnailUrl")}
+                controls={fieldControls(form, "thumbnailUrl")}
                 label="Thumbnail Image URL"
               >
                 <Input placeholder="https://example.com/thumbnail.png" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("galleryImageUrls")}
+                controls={fieldControls(form, "galleryImageUrls")}
                 label="Gallery Images"
               >
                 <ImageUrlInput form={form} />
@@ -467,7 +454,7 @@ function ReviewStep({
 
         <ReviewSection icon={CodeIcon} title="Tech Stack">
           <div className="flex flex-wrap gap-1.5">
-            {form.state.values.techTags.map((tag) => (
+            {form.state.values.techTags.map((tag: string) => (
               <span
                 className="rounded bg-muted px-2 py-1 text-muted-foreground text-xs"
                 key={tag}
@@ -549,19 +536,17 @@ function StepIndicator({
 
 function TechTagInput({ form }: { form: SubmitFormApi }) {
   const [inputValue, setInputValue] = useState("");
-  const tags = form.state.values.techTags;
+  const tags: string[] = form.state.values.techTags;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" && inputValue.trim()) {
         e.preventDefault();
-        form
-          .getFieldControls("techTags")
-          .onChange([...tags, inputValue.trim()]);
+        form.setFieldValue("techTags", [...tags, inputValue.trim()]);
         setInputValue("");
       }
       if (e.key === "Backspace" && !inputValue && tags.length > 0) {
-        form.getFieldControls("techTags").onChange(tags.slice(0, -1));
+        form.setFieldValue("techTags", tags.slice(0, -1));
       }
     },
     [form, inputValue, tags]
@@ -578,9 +563,10 @@ function TechTagInput({ form }: { form: SubmitFormApi }) {
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const { tag } = event.currentTarget.dataset;
       if (tag) {
-        form
-          .getFieldControls("techTags")
-          .onChange(tags.filter((t: string) => t !== tag));
+        form.setFieldValue(
+          "techTags",
+          tags.filter((t: string) => t !== tag)
+        );
       }
     },
     [form, tags]
@@ -617,19 +603,17 @@ function TechTagInput({ form }: { form: SubmitFormApi }) {
 
 function ImageUrlInput({ form }: { form: SubmitFormApi }) {
   const [inputValue, setInputValue] = useState("");
-  const urls = form.state.values.galleryImageUrls;
+  const urls: string[] = form.state.values.galleryImageUrls;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter" && inputValue.trim()) {
         e.preventDefault();
-        form
-          .getFieldControls("galleryImageUrls")
-          .onChange([...urls, inputValue.trim()]);
+        form.setFieldValue("galleryImageUrls", [...urls, inputValue.trim()]);
         setInputValue("");
       }
       if (e.key === "Backspace" && !inputValue && urls.length > 0) {
-        form.getFieldControls("galleryImageUrls").onChange(urls.slice(0, -1));
+        form.setFieldValue("galleryImageUrls", urls.slice(0, -1));
       }
     },
     [form, inputValue, urls]
@@ -646,9 +630,10 @@ function ImageUrlInput({ form }: { form: SubmitFormApi }) {
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const { url } = event.currentTarget.dataset;
       if (url) {
-        form
-          .getFieldControls("galleryImageUrls")
-          .onChange(urls.filter((u: string) => u !== url));
+        form.setFieldValue(
+          "galleryImageUrls",
+          urls.filter((u: string) => u !== url)
+        );
       }
     },
     [form, urls]

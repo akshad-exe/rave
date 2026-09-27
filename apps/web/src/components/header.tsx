@@ -15,7 +15,7 @@ const navigation = [
 
 const authLinks = [
   { label: "Sign in", to: "/login", variant: "ghost" as const },
-  { label: "Get started", to: "/register", variant: "default" as const },
+  { label: "Get started", to: "/login", variant: "default" as const },
 ] as const;
 
 export default function Header() {

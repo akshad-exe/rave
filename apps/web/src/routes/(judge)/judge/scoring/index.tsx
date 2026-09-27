@@ -11,7 +11,7 @@ import {
 import { Separator } from "@rave/ui/components/separator";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { Textarea } from "@rave/ui/components/textarea";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   AlertCircleIcon,
@@ -42,7 +42,7 @@ export const Route = createFileRoute("/(judge)/judge/scoring/")({
 
 function JudgeScoringComponent() {
   const { data: myAssignments, status: assignmentsStatus } = useQuery(
-    orpc.assignments.myAssignments.queryOptions({ eventId: "" })
+    orpc.assignments.myAssignments.queryOptions({ input: { eventId: "" } })
   );
 
   const assignments = useMemo(() => myAssignments ?? [], [myAssignments]);
@@ -60,26 +60,41 @@ function JudgeScoringComponent() {
   const assignment = assignments.find((a) => a.id === activeId) ?? null;
 
   const { data: assignmentDetail, status: detailStatus } = useQuery(
-    orpc.assignments.getAssignedSubmission.queryOptions(
-      { assignmentId: activeId ?? "" },
-      { enabled: activeId !== null }
-    )
+    orpc.assignments.getAssignedSubmission.queryOptions({
+      enabled: activeId !== null,
+      input: { assignmentId: activeId ?? "" },
+    })
   );
 
-  const rubricId = assignmentDetail?.assignment.rubricId ?? null;
+  const { eventId, trackId } = assignmentDetail?.assignment ?? {};
 
+  // `judge_assignment` carries no rubricId, so pick the rubric for this
+  // assignment's track, falling back to the event-wide rubric.
+  const { data: eventRubrics } = useQuery(
+    orpc.rubrics.listByEvent.queryOptions({
+      enabled: Boolean(eventId),
+      input: { eventId: eventId ?? "" },
+    })
+  );
+
+  const rubricId =
+    eventRubrics?.find((r) => r.trackId === trackId)?.id ??
+    eventRubrics?.find((r) => r.trackId === null)?.id ??
+    null;
+
+  // `listByEvent` returns bare rubric rows; `get` is what carries the criteria.
   const { data: rubric } = useQuery(
-    orpc.rubrics.get.queryOptions(
-      { rubricId: rubricId ?? "" },
-      { enabled: rubricId !== null }
-    )
+    orpc.rubrics.get.queryOptions({
+      enabled: rubricId !== null,
+      input: { rubricId: rubricId ?? "" },
+    })
   );
 
   const { data: myScore } = useQuery(
-    orpc.scoring.getMyScore.queryOptions(
-      { assignmentId: activeId ?? "" },
-      { enabled: activeId !== null }
-    )
+    orpc.scoring.getMyScore.queryOptions({
+      enabled: activeId !== null,
+      input: { assignmentId: activeId ?? "" },
+    })
   );
 
   const criteria = useMemo(() => rubric?.criteria ?? [], [rubric]);
@@ -87,6 +102,7 @@ function JudgeScoringComponent() {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitScore = useMutation(orpc.scoring.submit.mutationOptions());
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -131,7 +147,7 @@ function JudgeScoringComponent() {
 
     setIsSubmitting(true);
     try {
-      await orpc.scoring.submit.mutate({
+      await submitScore.mutateAsync({
         assignmentId: activeId,
         criterionScores: criteria.map((c) => ({
           criterionId: c.id,
@@ -148,7 +164,7 @@ function JudgeScoringComponent() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [activeId, rubricId, criteria, scores, feedback, isComplete]);
+  }, [activeId, rubricId, criteria, scores, feedback, isComplete, submitScore]);
 
   if (assignmentsStatus === "pending" || detailStatus === "pending") {
     return <ScoringSkeleton />;
@@ -371,15 +387,6 @@ function SubmissionOverview({
               </div>
             </div>
           ))}
-          <div className="rounded-lg bg-muted/30 p-3">
-            <div className="mb-1 flex items-center gap-2 text-muted-foreground text-sm">
-              <CheckCircleIcon className="size-4" />
-              <span>Team</span>
-            </div>
-            <span className="font-medium">
-              {submission?.teamId ? "Team" : "Individual"}
-            </span>
-          </div>
         </div>
       </CardContent>
     </Card>

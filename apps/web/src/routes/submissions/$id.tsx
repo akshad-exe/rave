@@ -55,7 +55,9 @@ function SubmissionDetailComponent() {
     data: submission,
     status: submissionStatus,
     isError,
-  } = useQuery(orpc.submissions.get.queryOptions({ submissionId: id }));
+  } = useQuery(
+    orpc.submissions.get.queryOptions({ input: { submissionId: id } })
+  );
 
   if (submissionStatus === "pending") {
     return <SubmissionDetailSkeleton />;

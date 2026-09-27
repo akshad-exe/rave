@@ -28,7 +28,15 @@ import {
   formatRelativeTime,
   getEventStatusConfig,
 } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+/** Item types taken from the contract, so they cannot drift from the API. */
+type EventListItem = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
+type SubmissionRow = Awaited<
+  ReturnType<typeof client.submissions.mySubmissions>
+>[number];
 
 /** Stable keys for skeleton placeholders, which have no id of their own. */
 const EVENT_SKELETON_KEYS = ["a", "b", "c"] as const;
@@ -40,18 +48,18 @@ export const Route = createFileRoute("/(dashboard)/dashboard")({
 
 function DashboardComponent() {
   const { data: myEvents, status: eventsStatus } = useQuery(
-    orpc.events.list.queryOptions({ limit: 5 })
+    orpc.events.list.queryOptions({ input: { limit: 5 } })
   );
   const { data: mySubmissions, status: submissionsStatus } = useQuery(
-    orpc.submissions.mySubmissions.queryOptions()
+    orpc.submissions.mySubmissions.queryOptions({ input: {} })
   );
   const { data: myTeam } = useQuery(
-    orpc.teams.myTeam.queryOptions({ eventId: "" })
+    orpc.teams.myTeam.queryOptions({ input: { eventId: "" } })
   );
 
   const upcomingEvents =
     myEvents?.events
-      ?.filter((e) => new Date(e.startDate) > new Date())
+      ?.filter((e) => e.startDate !== null && e.startDate > new Date())
       .slice(0, 3) ?? [];
   const recentSubmissions = mySubmissions?.slice(0, 3) ?? [];
 
@@ -177,15 +185,7 @@ function DashboardComponent() {
 
 function renderUpcomingEvents(
   eventsStatus: string,
-  upcomingEvents: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-    startDate: string | null;
-    submissionDeadline: string | null;
-    coverImageUrl: string | null;
-  }[]
+  upcomingEvents: EventListItem[]
 ) {
   if (eventsStatus === "pending") {
     return (
@@ -229,13 +229,7 @@ function renderUpcomingEvents(
 
 function renderRecentSubmissions(
   submissionsStatus: string,
-  recentSubmissions: {
-    id: string;
-    name: string;
-    status: string;
-    submittedAt: string | null;
-    trackId: string | null;
-  }[]
+  recentSubmissions: SubmissionRow[]
 ) {
   if (submissionsStatus === "pending") {
     return (
@@ -286,7 +280,7 @@ function StatCard({
   title: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
-  trend: string;
+  trend: number | string;
 }) {
   return (
     <Card className="p-5" variant="default">
@@ -306,31 +300,19 @@ function StatCard({
   );
 }
 
-function EventCard({
-  event,
-}: {
-  event: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-    startDate: string | null;
-    submissionDeadline: string | null;
-    coverImageUrl: string | null;
-  };
-}) {
+function EventCard({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
-  const coverImageUrl = event.coverImageUrl ?? "";
-  const hasCoverImage = Boolean(event.coverImageUrl);
-  const hasStartDate = Boolean(event.startDate);
-  const hasSubmissionDeadline = Boolean(event.submissionDeadline);
-  const startDate = event.startDate ?? "";
-  const submissionDeadline = event.submissionDeadline ?? "";
+  const { coverImageUrl, startDate, submissionDeadline } = event;
 
   return (
-    <Link className="block" to={`/hackathons/${event.slug}`}>
+    <Link
+      className="block"
+      params={{ slug: event.slug }}
+      search={{ tab: "overview" }}
+      to="/hackathons/$slug"
+    >
       <Card className="h-full" variant="interactive">
-        {hasCoverImage && (
+        {coverImageUrl ? (
           <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-t-lg">
             <img
               alt=""
@@ -345,24 +327,24 @@ function EventCard({
               </Badge>
             </div>
           </div>
-        )}
+        ) : null}
         <div className="space-y-2">
           <h3 className="line-clamp-1 font-semibold text-foreground">
             {event.name}
           </h3>
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            {hasStartDate && (
+            {startDate ? (
               <span className="flex items-center gap-1.5">
                 <CalendarIcon className="size-3.5" />
                 <span>{formatDate(startDate)}</span>
               </span>
-            )}
-            {hasSubmissionDeadline && (
+            ) : null}
+            {submissionDeadline ? (
               <span className="flex items-center gap-1.5">
                 <ClockIcon className="size-3.5" />
                 <span>Submits {formatRelativeTime(submissionDeadline)}</span>
               </span>
-            )}
+            ) : null}
           </div>
         </div>
       </Card>
@@ -382,17 +364,7 @@ function EventCardSkeleton() {
   );
 }
 
-function SubmissionRow({
-  submission,
-}: {
-  submission: {
-    id: string;
-    name: string;
-    status: string;
-    submittedAt: string | null;
-    trackId: string | null;
-  };
-}) {
+function SubmissionRow({ submission }: { submission: SubmissionRow }) {
   const getStatusConfig = (status: string) => {
     switch (status) {
       case "draft":

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { JudgeSidebar } from "@/components/judge-sidebar";
 import { authClient } from "@/lib/auth-client";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(judge)")({
   component: JudgeLayout,
@@ -9,8 +10,8 @@ export const Route = createFileRoute("/(judge)")({
     if (!session.data) {
       throw redirect({ to: "/login" });
     }
-    const profile = await authClient.getProfile();
-    if (profile.data?.role !== "judge" && profile.data?.role !== "admin") {
+    const me = await client.me();
+    if (me.role !== "judge" && me.role !== "admin") {
       throw redirect({ to: "/dashboard" });
     }
     return { session: session.data };

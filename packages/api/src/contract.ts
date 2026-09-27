@@ -48,6 +48,7 @@ type TeamWithMembers = TeamRow & {
 
 type EventListItem = Pick<
   EventRow,
+  | "allowIndividuals"
   | "coverImageUrl"
   | "endDate"
   | "id"

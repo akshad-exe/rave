@@ -30,6 +30,13 @@ import type * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 
 const PAGE_SIZE = 12;
+type EventStatus =
+  | "draft"
+  | "registration"
+  | "submission"
+  | "judging"
+  | "results"
+  | "archived";
 const SKELETON_SLOTS = ["a", "b", "c", "d", "e", "f"] as const;
 
 import {
@@ -55,10 +62,12 @@ function HackathonsComponent() {
 
   const { data, status, isError } = useQuery(
     orpc.events.list.queryOptions({
-      search: debouncedSearch || undefined,
-      status: statusFilter || undefined,
-      page,
-      limit: PAGE_SIZE,
+      input: {
+        search: debouncedSearch || undefined,
+        status: statusFilter ? (statusFilter as EventStatus) : undefined,
+        page,
+        limit: PAGE_SIZE,
+      },
     })
   );
 
@@ -90,6 +99,10 @@ function HackathonsComponent() {
 
   const handleLoadMore = useCallback(() => {
     setPage((p) => p + 1);
+  }, []);
+
+  const handleStatusChange = useCallback((value: string | null) => {
+    setStatusFilter(value ?? "");
   }, []);
 
   const events = data?.events ?? [];
@@ -141,7 +154,7 @@ function HackathonsComponent() {
           />
         </div>
         <div className="flex gap-2">
-          <Select onValueChange={setStatusFilter} value={statusFilter}>
+          <Select onValueChange={handleStatusChange} value={statusFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>

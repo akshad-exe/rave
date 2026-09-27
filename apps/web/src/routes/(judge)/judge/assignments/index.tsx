@@ -19,14 +19,18 @@ import {
   ClockIcon,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type JudgeAssignment = Awaited<
+  ReturnType<typeof client.assignments.myAssignments>
+>[number];
 
 function JudgeAssignmentsComponent() {
   const { data: myAssignments, status: assignmentsStatus } = useQuery(
-    orpc.assignments.myAssignments.queryOptions({ eventId: "" })
+    orpc.assignments.myAssignments.queryOptions({ input: { eventId: "" } })
   );
   const { data: myProgress } = useQuery(
-    orpc.assignments.myProgress.queryOptions({ eventId: "" })
+    orpc.assignments.myProgress.queryOptions({ input: { eventId: "" } })
   );
 
   const skeletonKeys = Array.from({ length: 5 }, (_, i) => `skeleton-${i}`);
@@ -137,18 +141,7 @@ function JudgeAssignmentsComponent() {
   );
 }
 
-function AssignmentCard({
-  assignment,
-}: {
-  assignment: {
-    id: string;
-    status: string;
-    assignedAt: string;
-    completedAt: string | null;
-    submissionId: string;
-    trackId: string | null;
-  };
-}) {
+function AssignmentCard({ assignment }: { assignment: JudgeAssignment }) {
   const getStatusConfig = (status: string) => {
     switch (status) {
       case "pending":
@@ -187,7 +180,7 @@ function AssignmentCard({
   const completedAt = assignment.completedAt ?? "";
 
   return (
-    <Link className="block" to={`/judge/assignments/${assignment.id}`}>
+    <Link className="block" to="/judge/assignments">
       <Card className="p-5" variant="interactive">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">

@@ -5,13 +5,11 @@ import { Separator } from "@rave/ui/components/separator";
 import { cn } from "@rave/ui/lib/utils";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  BarChartIcon,
   CheckCircleIcon,
   ClipboardListIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   SettingsIcon,
-  TrophyIcon,
   XIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -25,8 +23,6 @@ const navigation = [
     to: "/judge/assignments",
   },
   { icon: CheckCircleIcon, label: "Scoring", to: "/judge/scoring" },
-  { icon: BarChartIcon, label: "Progress", to: "/judge/progress" },
-  { icon: TrophyIcon, label: "Results", to: "/judge/results" },
 ] as const;
 
 export function JudgeSidebar() {
@@ -46,7 +42,7 @@ export function JudgeSidebar() {
   );
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Escape") {
         handleCloseSidebar();
       }

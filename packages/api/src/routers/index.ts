@@ -1,6 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
-import { protectedProcedure, publicProcedure } from "../index";
+import { protectedProcedure, publicProcedure, resolveRole } from "../index";
 import { adminRouter } from "./admin";
 import { eventsRouter } from "./events";
 import { exportsRouter } from "./exports";
@@ -28,6 +28,30 @@ export const appRouter = {
       tags: ["Meta"],
     })
     .handler(() => "OK"),
+  /**
+   * The signed-in user, plus their role.
+   *
+   * `role` is stored in a separate `user_profile` table so Better Auth's schema
+   * generation stays clean, which means the session user has no role field.
+   * Client-side route guards need it, so it is served here.
+   */
+  me: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/me",
+      summary: "Get the signed-in user and their platform role",
+      tags: ["Meta"],
+    })
+    .handler(async ({ context }) => {
+      const user = context.session?.user;
+      return {
+        email: user?.email ?? null,
+        id: user?.id ?? null,
+        image: user?.image ?? null,
+        name: user?.name ?? null,
+        role: await resolveRole(context),
+      };
+    }),
   privateData: protectedProcedure
     .route({
       method: "GET",

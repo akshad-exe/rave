@@ -14,7 +14,11 @@ import {
   ClockIcon,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type JudgeAssignment = Awaited<
+  ReturnType<typeof client.assignments.myAssignments>
+>[number];
 
 export const Route = createFileRoute("/(judge)/judge/")({
   component: JudgeDashboardComponent,
@@ -22,10 +26,10 @@ export const Route = createFileRoute("/(judge)/judge/")({
 
 function JudgeDashboardComponent() {
   const { data: myAssignments, status: assignmentsStatus } = useQuery(
-    orpc.assignments.myAssignments.queryOptions({ eventId: "" })
+    orpc.assignments.myAssignments.queryOptions({ input: { eventId: "" } })
   );
   const { data: myProgress } = useQuery(
-    orpc.assignments.myProgress.queryOptions({ eventId: "" })
+    orpc.assignments.myProgress.queryOptions({ input: { eventId: "" } })
   );
 
   const completed = myProgress?.completed ?? 0;
@@ -53,7 +57,9 @@ function JudgeDashboardComponent() {
               <div className="relative size-32">
                 <Progress
                   className="size-32"
-                  style={{ "--progress-radius": "9999px" }}
+                  style={
+                    { "--progress-radius": "9999px" } as React.CSSProperties
+                  }
                   value={completionPercent}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -115,7 +121,7 @@ function JudgeDashboardComponent() {
               title="Start Scoring"
             />
           </Link>
-          <Link to="/judge/progress">
+          <Link to="/judge">
             <ActionCard
               description="Detailed progress breakdown"
               icon={BarChartIcon}
@@ -145,15 +151,7 @@ function JudgeDashboardComponent() {
 
 function renderUpcomingDeadlines(
   assignmentsStatus: string,
-  myAssignments:
-    | {
-        id: string;
-        status: string;
-        assignedAt: string;
-        submissionId: string;
-        trackId: string | null;
-      }[]
-    | undefined
+  myAssignments: JudgeAssignment[] | undefined
 ) {
   if (assignmentsStatus === "pending") {
     return (
@@ -202,12 +200,12 @@ function ProgressStat({
   label: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
-  color: string;
+  color: "muted" | "success" | "warning";
 }) {
-  const colorClasses = {
+  const colorClasses: Record<"muted" | "success" | "warning", string> = {
+    muted: "text-muted-foreground bg-muted",
     success: "text-success bg-success/10",
     warning: "text-warning bg-warning/10",
-    muted: "text-muted-foreground bg-muted",
   };
 
   return (
@@ -225,17 +223,7 @@ function ProgressStat({
   );
 }
 
-function AssignmentRow({
-  assignment,
-}: {
-  assignment: {
-    id: string;
-    status: string;
-    assignedAt: string;
-    submissionId: string;
-    trackId: string | null;
-  };
-}) {
+function AssignmentRow({ assignment }: { assignment: JudgeAssignment }) {
   const getStatusConfig = (status: string) => {
     switch (status) {
       case "pending":
@@ -268,7 +256,7 @@ function AssignmentRow({
   const Icon = config.icon;
 
   return (
-    <Link className="block" to={`/judge/assignments/${assignment.id}`}>
+    <Link className="block" to="/judge/assignments">
       <Card
         className="flex items-center justify-between p-4"
         variant="borderless"

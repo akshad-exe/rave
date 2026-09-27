@@ -1,11 +1,24 @@
 "use client";
 
+import type {
+  MenuRootProps,
+  MenuSubmenuRootProps,
+  MenuTriggerProps,
+} from "@base-ui/react/menu";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "@rave/ui/lib/utils";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
+import { Children } from "react";
 
-function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
+/**
+ * `Menu.Root`, `Menu.Trigger` and `Menu.SubmenuRoot` are generic function
+ * components in base-ui 1.8, so `MenuPrimitive.X.Props` collapses to
+ * `Props<unknown>` and drops every real prop. Their prop types are imported
+ * directly instead. The remaining parts are ordinary components, where the
+ * `X.Props` namespace resolves correctly.
+ */
+function DropdownMenu(props: MenuRootProps) {
   return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
 }
 
@@ -13,8 +26,25 @@ function DropdownMenuPortal({ ...props }: MenuPrimitive.Portal.Props) {
   return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />;
 }
 
-function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
-  return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
+function DropdownMenuTrigger({
+  asChild,
+  children,
+  ...props
+}: MenuTriggerProps & {
+  /** Radix-style: merge the trigger's props onto its single child. */
+  asChild?: boolean;
+}) {
+  const render = asChild
+    ? (Children.only(children) as React.ReactElement)
+    : undefined;
+
+  return (
+    <MenuPrimitive.Trigger
+      data-slot="dropdown-menu-trigger"
+      render={render}
+      {...props}
+    />
+  );
 }
 
 function DropdownMenuContent({
@@ -76,14 +106,25 @@ function DropdownMenuLabel({
 }
 
 function DropdownMenuItem({
+  asChild,
+  children,
   className,
   inset,
   variant = "default",
   ...props
 }: MenuPrimitive.Item.Props & {
+  /**
+   * Radix-style escape hatch: merge the item's props onto its single child
+   * instead of rendering its own element. base-ui spells this `render`.
+   */
+  asChild?: boolean;
   inset?: boolean;
   variant?: "default" | "destructive";
 }) {
+  const render = asChild
+    ? (Children.only(children) as React.ReactElement)
+    : undefined;
+
   return (
     <MenuPrimitive.Item
       className={cn(
@@ -93,12 +134,13 @@ function DropdownMenuItem({
       data-inset={inset}
       data-slot="dropdown-menu-item"
       data-variant={variant}
+      render={render}
       {...props}
     />
   );
 }
 
-function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
+function DropdownMenuSub({ ...props }: MenuSubmenuRootProps) {
   return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />;
 }
 

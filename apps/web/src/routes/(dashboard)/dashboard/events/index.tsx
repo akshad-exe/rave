@@ -18,7 +18,11 @@ import {
   formatRelativeTime,
   getEventStatusConfig,
 } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type EventListItem = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
 
 export const Route = createFileRoute("/(dashboard)/dashboard/events/")({
   component: EventsComponent,
@@ -26,7 +30,7 @@ export const Route = createFileRoute("/(dashboard)/dashboard/events/")({
 
 function EventsComponent() {
   const { data: myEvents, status } = useQuery(
-    orpc.events.list.queryOptions({ limit: 20 })
+    orpc.events.list.queryOptions({ input: { limit: 20 } })
   );
 
   const skeletonKeys = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`);
@@ -101,21 +105,7 @@ function EventsComponent() {
   );
 }
 
-function EventCard({
-  event,
-}: {
-  event: {
-    id: string;
-    name: string;
-    slug: string;
-    tagline: string | null;
-    status: string;
-    startDate: string | null;
-    endDate: string | null;
-    submissionDeadline: string | null;
-    coverImageUrl: string | null;
-  };
-}) {
+function EventCard({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
   const coverImageUrl = event.coverImageUrl ?? "";
   const startDate = event.startDate ?? "";
@@ -126,7 +116,12 @@ function EventCard({
   const hasSubmissionDeadline = Boolean(event.submissionDeadline);
 
   return (
-    <Link className="block" to={`/hackathons/${event.slug}`}>
+    <Link
+      className="block"
+      params={{ slug: event.slug }}
+      search={{ tab: "overview" }}
+      to="/hackathons/$slug"
+    >
       <Card className="h-full" variant="interactive">
         {hasCoverImage && (
           <div className="relative mb-4 aspect-video w-full overflow-hidden rounded-t-lg">

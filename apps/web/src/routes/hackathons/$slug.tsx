@@ -23,7 +23,12 @@ import {
   UsersIcon,
 } from "lucide-react";
 import type * as React from "react";
-import { formatDate, formatDateTime, getEventStatusConfig } from "@/lib/utils";
+import {
+  formatDate,
+  formatDateTime,
+  formatRelativeTime,
+  getEventStatusConfig,
+} from "@/lib/utils";
 import { type client, orpc } from "@/utils/orpc";
 
 type EventDetail = Awaited<ReturnType<typeof client.events.getBySlug>>;
@@ -42,7 +47,7 @@ function HackathonDetailComponent() {
     data: event,
     status: eventStatus,
     isError,
-  } = useQuery(orpc.events.getBySlug.queryOptions({ slug }));
+  } = useQuery(orpc.events.getBySlug.queryOptions({ input: { slug } }));
 
   if (eventStatus === "pending") {
     return <HackathonDetailSkeleton />;
@@ -342,7 +347,7 @@ function TimelineTab({ event }: { event: EventDetail }) {
 
 function TracksPrizesTab({ eventId }: { eventId: string }) {
   const { data: adminData, status: adminStatus } = useQuery(
-    orpc.events.getAdmin.queryOptions({ eventId })
+    orpc.events.getAdmin.queryOptions({ input: { eventId } })
   );
 
   if (adminStatus === "pending") {
@@ -569,21 +574,4 @@ function HackathonDetailSkeleton() {
       </Tabs>
     </div>
   );
-}
-
-function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diff = date.getTime() - now.getTime();
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  if (days < 0) {
-    return `${Math.abs(days)} days ago`;
-  }
-  if (days === 0) {
-    return "Today";
-  }
-  if (days === 1) {
-    return "Tomorrow";
-  }
-  return `in ${days} days`;
 }

@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { OrganizerSidebar } from "@/components/organizer-sidebar";
 import { authClient } from "@/lib/auth-client";
+import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(organizer)")({
   component: OrganizerLayout,
@@ -9,8 +10,8 @@ export const Route = createFileRoute("/(organizer)")({
     if (!session.data) {
       throw redirect({ to: "/login" });
     }
-    const profile = await authClient.getProfile();
-    if (profile.data?.role !== "organizer" && profile.data?.role !== "admin") {
+    const me = await client.me();
+    if (me.role !== "organizer" && me.role !== "admin") {
       throw redirect({ to: "/dashboard" });
     }
     return { session: session.data };

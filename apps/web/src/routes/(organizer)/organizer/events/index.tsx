@@ -4,7 +4,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@rave/ui/components/dropdown-menu";
 import {
@@ -19,22 +18,21 @@ import { Skeleton } from "@rave/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  BarChartIcon,
   CalendarIcon,
-  CodeIcon,
   EditIcon,
   MoreHorizontalIcon,
   PlusIcon,
-  TrashIcon,
-  TrophyIcon,
-  UsersIcon,
 } from "lucide-react";
 import {
   formatDate,
   formatRelativeTime,
   getEventStatusConfig,
 } from "@/lib/utils";
-import { orpc } from "@/utils/orpc";
+import { type client, orpc } from "@/utils/orpc";
+
+type EventListItem = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
 
 export const Route = createFileRoute("/(organizer)/organizer/events/")({
   component: OrganizerEventsComponent,
@@ -42,7 +40,7 @@ export const Route = createFileRoute("/(organizer)/organizer/events/")({
 
 function OrganizerEventsComponent() {
   const { data: events, status: eventsStatus } = useQuery(
-    orpc.events.list.queryOptions({ limit: 50 })
+    orpc.events.list.queryOptions({ input: { limit: 50 } })
   );
 
   return (
@@ -71,7 +69,7 @@ function renderEventsBody({
   events,
   isPending,
 }: {
-  events: { events: unknown[] } | undefined;
+  events: { events: EventListItem[] } | undefined;
   isPending: boolean;
 }) {
   if (isPending) {
@@ -139,19 +137,7 @@ function renderEventsBody({
   );
 }
 
-function EventRow({
-  event,
-}: {
-  event: {
-    id: string;
-    name: string;
-    slug: string;
-    status: string;
-    startDate: string | null;
-    endDate: string | null;
-    submissionDeadline: string | null;
-  };
-}) {
+function EventRow({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
 
   return (
@@ -159,7 +145,7 @@ function EventRow({
       <td className="p-4">
         <Link
           className="font-medium text-foreground hover:text-primary"
-          to={`/organizer/events/${event.slug}`}
+          to="/organizer/events"
         >
           {event.name}
         </Link>
@@ -187,40 +173,9 @@ function EventRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem asChild>
-              <Link to={`/organizer/events/${event.slug}`}>
+              <Link to="/organizer/events">
                 <EditIcon className="size-4" />
-                Edit Event
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={`/organizer/events/${event.slug}/participants`}>
-                <UsersIcon className="size-4" />
-                Participants
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={`/organizer/events/${event.slug}/submissions`}>
-                <CodeIcon className="size-4" />
-                Submissions
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={`/organizer/events/${event.slug}/judging`}>
-                <TrophyIcon className="size-4" />
-                Judging
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to={`/organizer/events/${event.slug}/analytics`}>
-                <BarChartIcon className="size-4" />
-                Analytics
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild className="text-error">
-              <Link to={`/organizer/events/${event.slug}/settings`}>
-                <TrashIcon className="size-4" />
-                Delete Event
+                Manage Events
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -36,8 +36,12 @@ const ROLE_HIERARCHY: Record<UserRole, number> = {
 /**
  * Resolve the current user's role from the database.
  * Returns 'participant' as default if no profile row exists.
+ *
+ * Exported so the `me` procedure can hand the caller's role to the client.
+ * `role` lives in `user_profile` rather than the Better Auth `user` table, so
+ * nothing in the session carries it and clients cannot read it any other way.
  */
-async function resolveRole(context: Context): Promise<UserRole> {
+export async function resolveRole(context: Context): Promise<UserRole> {
   if (!context.session?.user) {
     return "visitor";
   }

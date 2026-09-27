@@ -5,15 +5,10 @@ import { Separator } from "@rave/ui/components/separator";
 import { cn } from "@rave/ui/lib/utils";
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  BarChartIcon,
   CalendarIcon,
-  CodeIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   SettingsIcon,
-  ShieldIcon,
-  TrophyIcon,
-  UsersIcon,
   XIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -22,12 +17,6 @@ import { authClient } from "@/lib/auth-client";
 const navigation = [
   { icon: LayoutDashboardIcon, label: "Overview", to: "/organizer" },
   { icon: CalendarIcon, label: "Events", to: "/organizer/events" },
-  { icon: UsersIcon, label: "Participants", to: "/organizer/participants" },
-  { icon: UsersIcon, label: "Teams", to: "/organizer/teams" },
-  { icon: CodeIcon, label: "Submissions", to: "/organizer/submissions" },
-  { icon: ShieldIcon, label: "Judging", to: "/organizer/judging" },
-  { icon: TrophyIcon, label: "Results", to: "/organizer/results" },
-  { icon: BarChartIcon, label: "Analytics", to: "/organizer/analytics" },
 ] as const;
 
 export function OrganizerSidebar() {
@@ -47,7 +36,7 @@ export function OrganizerSidebar() {
   );
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Escape") {
         handleCloseSidebar();
       }

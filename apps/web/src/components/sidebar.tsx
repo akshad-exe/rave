@@ -22,7 +22,7 @@ const navigation = [
   { icon: CalendarIcon, label: "My Events", to: "/dashboard/events" },
   { icon: UsersIcon, label: "My Teams", to: "/dashboard/teams" },
   { icon: CodeIcon, label: "Submissions", to: "/dashboard/submissions" },
-  { icon: TrophyIcon, label: "Gallery", to: "/dashboard/gallery" },
+  { icon: TrophyIcon, label: "Gallery", to: "/gallery" },
 ] as const;
 
 export function Sidebar() {
@@ -42,7 +42,7 @@ export function Sidebar() {
   );
 
   const handleKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
+    (event: React.KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Escape") {
         handleCloseSidebar();
       }

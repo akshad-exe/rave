@@ -18,7 +18,9 @@ import {
 } from "@rave/ui/components/select";
 import { Separator } from "@rave/ui/components/separator";
 import { Textarea } from "@rave/ui/components/textarea";
+import type { AnyFormApi } from "@tanstack/react-form";
 import { useForm } from "@tanstack/react-form";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   CalendarIcon,
@@ -33,9 +35,9 @@ import type * as React from "react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
-import { FormField } from "@/components/form-field";
+import { FormField, fieldControls } from "@/components/form-field";
 import { authClient } from "@/lib/auth-client";
-import { orpc } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 /** Slug rules live at module scope so the regex is not rebuilt on every render. */
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
@@ -71,6 +73,47 @@ function createTrack(sortOrder: number): TrackDraft {
   return { description: "", id: `t_${Date.now()}`, name: "", sortOrder };
 }
 
+/**
+ * Kept at module scope so the component body stays within the complexity budget,
+ * and typed against the same shape the form's `defaultValues` produce.
+ */
+type EventVotingMode = "disabled" | "open" | "authenticated";
+
+const eventFormSchema = z.object({
+  name: z.string().min(3, "Name must be at least 3 characters").max(120),
+  slug: z
+    .string()
+    .min(3)
+    .max(80)
+    .regex(SLUG_PATTERN, "Slug must be lowercase alphanumeric with dashes"),
+  tagline: z.string().max(200),
+  description: z.string().max(10_000),
+  coverImageUrl: z.url("Invalid URL").or(z.literal("")),
+  websiteUrl: z.url("Invalid URL").or(z.literal("")),
+  isPublic: z.boolean(),
+  allowIndividuals: z.boolean(),
+  maxTeamSize: z.number().int().min(1).max(20),
+  minTeamSize: z.number().int().min(1),
+  maxVotesPerUser: z.number().int().min(1).max(50),
+  votingMode: z.enum(["disabled", "open", "authenticated"]),
+  registrationStartAt: z.string(),
+  registrationEndAt: z.string(),
+  submissionStartAt: z.string(),
+  submissionDeadline: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
+  judgingStartAt: z.string(),
+  judgingEndAt: z.string(),
+  customQuestions: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string().max(200),
+      type: z.enum(["text", "url", "textarea"]),
+      required: z.boolean(),
+    })
+  ),
+});
+
 export const Route = createFileRoute("/(organizer)/organizer/events/new/")({
   component: CreateEventComponent,
   beforeLoad: async () => {
@@ -78,17 +121,19 @@ export const Route = createFileRoute("/(organizer)/organizer/events/new/")({
     if (!session.data) {
       throw redirect({ to: "/login" });
     }
-    const profile = await authClient.getProfile();
-    if (profile.data?.role !== "organizer" && profile.data?.role !== "admin") {
+    const me = await client.me();
+    if (me.role !== "organizer" && me.role !== "admin") {
       throw redirect({ to: "/dashboard" });
     }
   },
 });
 
 function CreateEventComponent() {
-  const navigate = useNavigate({ from: "/organizer" });
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const steps = ["Basic Info", "Dates & Rules", "Tracks & Prizes", "Review"];
+
+  const createEvent = useMutation(orpc.events.create.mutationOptions());
 
   const form = useForm({
     defaultValues: {
@@ -103,7 +148,7 @@ function CreateEventComponent() {
       maxTeamSize: 4,
       minTeamSize: 1,
       maxVotesPerUser: 3,
-      votingMode: "disabled",
+      votingMode: "disabled" as EventVotingMode,
       registrationStartAt: "",
       registrationEndAt: "",
       submissionStartAt: "",
@@ -120,56 +165,23 @@ function CreateEventComponent() {
       }>,
     },
     onSubmit: async ({ value }) => {
-      await orpc.events.create.mutate(value, {
-        onSuccess: (event) => {
-          toast.success("Event created successfully");
-          navigate({ to: `/organizer/events/${event.slug}` });
-        },
-        onError: (error) => {
-          toast.error(error.message || "Failed to create event");
-        },
-      });
+      try {
+        await createEvent.mutateAsync(value);
+        toast.success("Event created successfully");
+        // No `/organizer/events/$slug` route exists yet, so land on the list.
+        navigate({ to: "/organizer/events" });
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to create event"
+        );
+      }
     },
+    // The form always supplies a string for every optional-looking field
+    // (its defaults are ""), so the schema input must be `string`, not
+    // `string | undefined` — Standard Schema's input type has to match the
+    // form data exactly or `useForm` rejects the validator.
     validators: {
-      onSubmit: z.object({
-        name: z.string().min(3, "Name must be at least 3 characters").max(120),
-        slug: z
-          .string()
-          .min(3)
-          .max(80)
-          .regex(
-            SLUG_PATTERN,
-            "Slug must be lowercase alphanumeric with dashes"
-          ),
-        tagline: z.string().max(200).optional(),
-        description: z.string().max(10_000).optional(),
-        coverImageUrl: z.url("Invalid URL").optional().or(z.literal("")),
-        websiteUrl: z.url("Invalid URL").optional().or(z.literal("")),
-        isPublic: z.boolean(),
-        allowIndividuals: z.boolean(),
-        maxTeamSize: z.number().int().min(1).max(20),
-        minTeamSize: z.number().int().min(1),
-        maxVotesPerUser: z.number().int().min(1).max(50),
-        votingMode: z.enum(["disabled", "open", "authenticated"]),
-        registrationStartAt: z.string().optional(),
-        registrationEndAt: z.string().optional(),
-        submissionStartAt: z.string().optional(),
-        submissionDeadline: z.string().optional(),
-        startDate: z.string().optional(),
-        endDate: z.string().optional(),
-        judgingStartAt: z.string().optional(),
-        judgingEndAt: z.string().optional(),
-        customQuestions: z
-          .array(
-            z.object({
-              id: z.string(),
-              label: z.string().max(200),
-              type: z.enum(["text", "url", "textarea"]),
-              required: z.boolean(),
-            })
-          )
-          .default([]),
-      }),
+      onSubmit: eventFormSchema,
     },
   });
 
@@ -197,7 +209,7 @@ function CreateEventComponent() {
   const handleSlugBlur = useCallback(
     (event: React.FocusEvent<HTMLInputElement>) => {
       if (!form.state.values.slug && form.state.values.name) {
-        form.getFieldControls("slug").onChange(slugify(event.target.value));
+        fieldControls(form, "slug").onChange(slugify(event.target.value));
       }
     },
     [form]
@@ -265,14 +277,14 @@ function CreateEventComponent() {
             </CardHeader>
             <CardContent className="space-y-5">
               <FormField
-                controls={form.getFieldControls("name")}
+                controls={fieldControls(form, "name")}
                 label="Event Name"
               >
                 <Input placeholder="Sample Hack 2026" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("slug")}
+                controls={fieldControls(form, "slug")}
                 label="Slug (URL)"
               >
                 <div className="flex items-center gap-2">
@@ -285,7 +297,7 @@ function CreateEventComponent() {
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("tagline")}
+                controls={fieldControls(form, "tagline")}
                 label="Tagline"
               >
                 <Input placeholder="A short, catchy description" />
@@ -293,7 +305,7 @@ function CreateEventComponent() {
 
               <FormField
                 asTextarea
-                controls={form.getFieldControls("description")}
+                controls={fieldControls(form, "description")}
                 label="Description"
               >
                 <Textarea
@@ -305,14 +317,14 @@ function CreateEventComponent() {
               <Separator className="my-4" />
 
               <FormField
-                controls={form.getFieldControls("coverImageUrl")}
+                controls={fieldControls(form, "coverImageUrl")}
                 label="Cover Image URL"
               >
                 <Input placeholder="https://example.com/cover.jpg" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("websiteUrl")}
+                controls={fieldControls(form, "websiteUrl")}
                 label="Website URL"
               >
                 <Input placeholder="https://your-event.com" />
@@ -320,7 +332,7 @@ function CreateEventComponent() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("isPublic")}
+                  controls={fieldControls(form, "isPublic")}
                   label="Public Event"
                 >
                   <div className="flex items-center gap-2">
@@ -330,7 +342,7 @@ function CreateEventComponent() {
                 </FormField>
 
                 <FormField
-                  controls={form.getFieldControls("allowIndividuals")}
+                  controls={fieldControls(form, "allowIndividuals")}
                   label="Allow Individuals"
                 >
                   <div className="flex items-center gap-2">
@@ -361,13 +373,13 @@ function CreateEventComponent() {
             <CardContent className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("registrationStartAt")}
+                  controls={fieldControls(form, "registrationStartAt")}
                   label="Registration Opens"
                 >
                   <Input type="datetime-local" />
                 </FormField>
                 <FormField
-                  controls={form.getFieldControls("registrationEndAt")}
+                  controls={fieldControls(form, "registrationEndAt")}
                   label="Registration Closes"
                 >
                   <Input type="datetime-local" />
@@ -376,13 +388,13 @@ function CreateEventComponent() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("submissionStartAt")}
+                  controls={fieldControls(form, "submissionStartAt")}
                   label="Submissions Open"
                 >
                   <Input type="datetime-local" />
                 </FormField>
                 <FormField
-                  controls={form.getFieldControls("submissionDeadline")}
+                  controls={fieldControls(form, "submissionDeadline")}
                   label="Submission Deadline"
                 >
                   <Input type="datetime-local" />
@@ -391,13 +403,13 @@ function CreateEventComponent() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("startDate")}
+                  controls={fieldControls(form, "startDate")}
                   label="Event Starts"
                 >
                   <Input type="datetime-local" />
                 </FormField>
                 <FormField
-                  controls={form.getFieldControls("endDate")}
+                  controls={fieldControls(form, "endDate")}
                   label="Event Ends"
                 >
                   <Input type="datetime-local" />
@@ -406,13 +418,13 @@ function CreateEventComponent() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("judgingStartAt")}
+                  controls={fieldControls(form, "judgingStartAt")}
                   label="Judging Starts"
                 >
                   <Input type="datetime-local" />
                 </FormField>
                 <FormField
-                  controls={form.getFieldControls("judgingEndAt")}
+                  controls={fieldControls(form, "judgingEndAt")}
                   label="Judging Ends"
                 >
                   <Input type="datetime-local" />
@@ -423,13 +435,13 @@ function CreateEventComponent() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
-                  controls={form.getFieldControls("minTeamSize")}
+                  controls={fieldControls(form, "minTeamSize")}
                   label="Min Team Size"
                 >
                   <Input max="20" min="1" type="number" />
                 </FormField>
                 <FormField
-                  controls={form.getFieldControls("maxTeamSize")}
+                  controls={fieldControls(form, "maxTeamSize")}
                   label="Max Team Size"
                 >
                   <Input max="20" min="1" type="number" />
@@ -437,14 +449,14 @@ function CreateEventComponent() {
               </div>
 
               <FormField
-                controls={form.getFieldControls("maxVotesPerUser")}
+                controls={fieldControls(form, "maxVotesPerUser")}
                 label="Max Votes Per User"
               >
                 <Input max="50" min="1" type="number" />
               </FormField>
 
               <FormField
-                controls={form.getFieldControls("votingMode")}
+                controls={fieldControls(form, "votingMode")}
                 label="Voting Mode"
               >
                 <Select>
@@ -645,15 +657,15 @@ interface QuestionDraft {
   type: "text" | "url" | "textarea";
 }
 
-function CustomQuestions({ form }: { form: ReturnType<typeof useForm> }) {
+function CustomQuestions({ form }: { form: AnyFormApi }) {
   const [questions, setQuestions] = useState<QuestionDraft[]>(
-    form.state.values.customQuestions ?? []
+    (form.state.values.customQuestions as QuestionDraft[] | undefined) ?? []
   );
 
   const commit = useCallback(
     (next: QuestionDraft[]) => {
       setQuestions(next);
-      form.getFieldControls("customQuestions").onChange(next);
+      form.setFieldValue("customQuestions", next);
     },
     [form]
   );

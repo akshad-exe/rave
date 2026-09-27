@@ -53,12 +53,15 @@ function GalleryComponent() {
 
   const { data, status, isError } = useQuery(
     orpc.submissions.gallery.queryOptions({
-      eventId: "", // Will use default public event
-      search: debouncedSearch || undefined,
-      trackId: trackFilter || undefined,
-      sortBy,
-      page,
-      limit: PAGE_SIZE,
+      input: {
+        // TODO: resolve the public event instead of querying with a blank id
+        eventId: "",
+        search: debouncedSearch || undefined,
+        trackId: trackFilter || undefined,
+        sortBy,
+        page,
+        limit: PAGE_SIZE,
+      },
     })
   );
 
@@ -90,6 +93,14 @@ function GalleryComponent() {
 
   const handleLoadMore = useCallback(() => {
     setPage((p) => p + 1);
+  }, []);
+
+  const handleTrackChange = useCallback((value: string | null) => {
+    setTrackFilter(value ?? "");
+  }, []);
+
+  const handleSortChange = useCallback((value: string | null) => {
+    setSortBy(value === "name" ? "name" : "recent");
   }, []);
 
   const submissions = data?.submissions ?? [];
@@ -139,7 +150,7 @@ function GalleryComponent() {
           />
         </div>
         <div className="flex gap-2">
-          <Select onValueChange={setTrackFilter} value={trackFilter}>
+          <Select onValueChange={handleTrackChange} value={trackFilter}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="All Tracks" />
             </SelectTrigger>
@@ -148,7 +159,7 @@ function GalleryComponent() {
               {/* Tracks would be populated from API */}
             </SelectContent>
           </Select>
-          <Select onValueChange={setSortBy} value={sortBy}>
+          <Select onValueChange={handleSortChange} value={sortBy}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -250,7 +261,7 @@ function renderGalleryBody({
 
 function ProjectCard({ project }: { project: GalleryItem }) {
   return (
-    <Link className="block" to={`/submissions/${project.id}`}>
+    <Link className="block" params={{ id: project.id }} to="/submissions/$id">
       <Card className="flex h-full flex-col" variant="interactive">
         <div className="relative aspect-video w-full overflow-hidden rounded-t-lg bg-muted">
           {project.thumbnailUrl ? (
