@@ -1,0 +1,48 @@
+# Normalize line endings to LF on commit, check out as LF everywhere.
+# This prevents the Windows CRLF vs Linux LF churn that breaks Biome's
+# formatter check (ultracite) when the repo is cloned on Windows.
+
+* text=auto eol=lf
+
+# Source files — always LF
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.js   text eol=lf
+*.jsx  text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.mdx  text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.toml text eol=lf
+*.env* text eol=lf
+*.sh   text eol=lf
+
+# Config files
+.editorconfig text eol=lf
+.gitignore    text eol=lf
+.gitattributes text eol=lf
+Dockerfile    text eol=lf
+Makefile      text eol=lf
+
+# Python scripts
+*.py text eol=lf
+
+# Binary files — no line ending conversion
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.svg  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.eot  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
