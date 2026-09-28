@@ -41,10 +41,6 @@ type GalleryItem = Awaited<
   ReturnType<typeof client.submissions.gallery>
 >["submissions"][number];
 
-type PublicEvent = Awaited<
-  ReturnType<typeof client.events.list>
->["events"][number];
-
 export const Route = createFileRoute("/gallery/")({
   component: GalleryComponent,
 });
@@ -68,7 +64,6 @@ function GalleryComponent() {
 
   const {
     data: galleryData,
-    status: galleryStatus,
     isError: galleryError,
     isPending,
   } = useQuery({
@@ -378,7 +373,7 @@ function ProjectCard({
       </Link>
 
       {/* Vote affordance */}
-      {eventId && (
+      {eventId !== "" && (
         <div className="mt-3 border-border border-t pt-3">
           <Link
             className="inline-flex items-center gap-1.5 font-medium text-primary text-sm hover:text-primary/80"

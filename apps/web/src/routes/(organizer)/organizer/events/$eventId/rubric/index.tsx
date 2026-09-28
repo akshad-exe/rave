@@ -158,7 +158,6 @@ function RubricEditorPage() {
         <div className="lg:col-span-3">
           {activeRubric ? (
             <ExistingRubricView
-              eventId={eventId}
               rubric={activeRubric}
               selectedTrack={
                 tracks?.find((t) => t.id === selectedTrackId) ?? null
@@ -222,10 +221,8 @@ function TrackButton({
 
 function ExistingRubricView({
   rubric,
-  eventId,
   selectedTrack,
 }: {
-  eventId: string;
   rubric: RubricRow;
   selectedTrack: Track | null;
 }) {
@@ -318,6 +315,24 @@ function RubricCreateForm({
   ]);
 
   const createRubric = useMutation(orpc.rubrics.create.mutationOptions());
+
+  const handleNameChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setName(e.target.value);
+    },
+    []
+  );
+
+  const handleDescriptionChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setDescription(e.target.value);
+    },
+    []
+  );
+
+  const handleWeightedChange = useCallback((checked: boolean) => {
+    setIsWeighted(checked);
+  }, []);
 
   // ── Weight helpers ──────────────────────────────────────────────────────────
 
@@ -469,7 +484,7 @@ function RubricCreateForm({
               <Input
                 id="rubric-name"
                 maxLength={120}
-                onChange={(e) => setName(e.target.value)}
+                onChange={handleNameChange}
                 placeholder="e.g. Standard Judging Rubric"
                 value={name}
               />
@@ -479,7 +494,7 @@ function RubricCreateForm({
               <Textarea
                 id="rubric-desc"
                 maxLength={2000}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={handleDescriptionChange}
                 placeholder="Explain what judges should focus on..."
                 rows={2}
                 value={description}
@@ -492,7 +507,7 @@ function RubricCreateForm({
             <Checkbox
               checked={isWeighted}
               id="weighted-toggle"
-              onCheckedChange={(checked) => setIsWeighted(checked === true)}
+              onCheckedChange={handleWeightedChange}
             />
             <div>
               <Label className="cursor-pointer" htmlFor="weighted-toggle">
@@ -515,7 +530,7 @@ function RubricCreateForm({
                 ({criteria.length})
               </span>
             </h3>
-            {isWeighted && (
+            {isWeighted ? (
               <Button
                 onClick={distributeEvenly}
                 size="sm"
@@ -525,17 +540,17 @@ function RubricCreateForm({
                 <ScaleIcon className="size-4" />
                 Distribute evenly
               </Button>
-            )}
+            ) : null}
           </div>
 
           {/* Weight progress indicator */}
-          {isWeighted && (
+          {isWeighted ? (
             <WeightIndicator
               isValid={isWeightValid}
               remaining={remainingWeight}
               total={totalWeight}
             />
-          )}
+          ) : null}
 
           {/* Criteria list */}
           <div className="space-y-4">
@@ -607,21 +622,23 @@ function WeightIndicator({
   const clamped = Math.min(100, Math.max(0, total));
   const isOver = total > 100;
 
+  // Resolved as a lookup rather than a nested ternary, so the three states read
+  // as three named outcomes.
+  const totalClassName = (() => {
+    if (isOver) {
+      return "font-medium text-error";
+    }
+    if (isValid) {
+      return "font-medium text-success";
+    }
+    return "text-foreground";
+  })();
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">Weight used</span>
-        <span
-          className={
-            isOver
-              ? "font-medium text-error"
-              : isValid
-                ? "font-medium text-success"
-                : "text-foreground"
-          }
-        >
-          {total.toFixed(0)}% / 100%
-        </span>
+        <span className={totalClassName}>{total.toFixed(0)}% / 100%</span>
       </div>
       <Progress
         className={isOver ? "bg-error/20" : undefined}
@@ -632,11 +649,11 @@ function WeightIndicator({
           {remaining.toFixed(0)}% remaining to assign
         </p>
       )}
-      {isOver && (
+      {isOver ? (
         <p className="text-error text-xs">
           {(total - 100).toFixed(0)}% over the limit — reduce some weights
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -705,7 +722,7 @@ function CriterionRow({
                 value={criterion.name}
               />
             </div>
-            {isWeighted && (
+            {isWeighted ? (
               <div>
                 <Label
                   className="mb-1.5 block text-xs"
@@ -724,7 +741,7 @@ function CriterionRow({
                   value={criterion.weight || ""}
                 />
               </div>
-            )}
+            ) : null}
           </div>
 
           {/* Description */}
@@ -776,7 +793,7 @@ function CriterionRow({
           </div>
         </div>
 
-        {canRemove && (
+        {canRemove ? (
           <button
             aria-label={`Remove ${criterion.name || "criterion"}`}
             className="mt-1 rounded p-1 text-muted-foreground transition-colors hover:bg-error/10 hover:text-error"
@@ -785,7 +802,7 @@ function CriterionRow({
           >
             <Trash2Icon className="size-4" />
           </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

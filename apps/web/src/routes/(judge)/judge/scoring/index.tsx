@@ -195,6 +195,19 @@ function JudgeScoringComponent() {
     );
   }
 
+  // Resolved as a lookup rather than nested ternaries, and kept out of the JSX
+  // so the component stays inside the cognitive-complexity budget.
+  const criteriaDescription = (() => {
+    if (!rubric) {
+      return "This assignment has no rubric attached.";
+    }
+    const range = `Rate each criterion from ${criteria[0]?.minScore ?? 0} to ${criteria[0]?.maxScore ?? 10}. `;
+    if (rubric.isWeighted) {
+      return `${range}Criterion weights are shown below — the authoritative weighted total is computed by the server on submission.`;
+    }
+    return `${range}Scores are averaged across criteria.`;
+  })();
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="grid gap-8 lg:grid-cols-4">
@@ -232,11 +245,7 @@ function JudgeScoringComponent() {
           <Card variant="default">
             <CardHeader>
               <CardTitle>Scoring Criteria</CardTitle>
-              <CardDescription>
-                {rubric
-                  ? `Rate each criterion from ${criteria[0]?.minScore ?? 0} to ${criteria[0]?.maxScore ?? 10}. ${rubric.isWeighted ? "Criterion weights are shown below — the authoritative weighted total is computed by the server on submission." : "Scores are averaged across criteria."}`
-                  : "This assignment has no rubric attached."}
-              </CardDescription>
+              <CardDescription>{criteriaDescription}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 pt-0">
               {myScore?.isLocked ? (

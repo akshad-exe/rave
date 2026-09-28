@@ -404,7 +404,9 @@ export interface VotingService {
   counts: (
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.voteCountsInput>
-  ) => Promise<Array<{ submissionId: string; votes: number; influence: number }>>;
+  ) => Promise<
+    Array<{ submissionId: string; votes: number; influence: number }>
+  >;
   myVotes: (
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.eventIdInput>

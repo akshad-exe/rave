@@ -12,6 +12,14 @@ import {
   CardTitle,
 } from "@rave/ui/components/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@rave/ui/components/dialog";
+import {
   Empty,
   EmptyAction,
   EmptyDescription,
@@ -42,6 +50,13 @@ import { useCallback, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { formatRelativeTime } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
+
+// Precomputed so the loading placeholders get stable keys that are not derived
+// from an array index.
+const COMMENT_SKELETON_KEYS = Array.from(
+  { length: 3 },
+  (_, i) => `comment-skeleton-${i}`
+);
 
 function getStatusConfig(status: string): {
   icon: typeof AlertCircleIcon;
@@ -87,6 +102,75 @@ function SubmissionDetailComponent() {
   // Get current user session
   const { data: session } = authClient.useSession();
 
+  // Create comment mutation
+  const createCommentMutation = useMutation(
+    orpc.comments.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
+      },
+    })
+  );
+
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation(
+    orpc.comments.delete.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
+      },
+    })
+  );
+
+  const [newComment, setNewComment] = useState("");
+
+  const handleNewCommentChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setNewComment(e.target.value);
+    },
+    []
+  );
+
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const cancelDelete = useCallback(() => {
+    setPendingDeleteId(null);
+  }, []);
+
+  const handleDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setPendingDeleteId(null);
+    }
+  }, []);
+
+  // A real confirmation dialog rather than window.confirm, which blocks the
+  // main thread and is styled by the browser rather than the app.
+  const confirmDelete = useCallback(() => {
+    if (pendingDeleteId) {
+      deleteCommentMutation.mutate({ commentId: pendingDeleteId });
+    }
+    setPendingDeleteId(null);
+  }, [deleteCommentMutation, pendingDeleteId]);
+
+  const handleSubmitComment = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newComment.trim()) {
+        return;
+      }
+      createCommentMutation.mutate({
+        content: newComment.trim(),
+        submissionId: id,
+      });
+      setNewComment("");
+    },
+    [createCommentMutation, id, newComment]
+  );
+
+  const handleDeleteComment = useCallback((commentId: string) => {
+    setPendingDeleteId(commentId);
+  }, []);
+
+  // Early returns live after every hook, so the hook count stays constant
+  // across renders regardless of what the query returns.
   if (submissionStatus === "pending") {
     return <SubmissionDetailSkeleton />;
   }
@@ -118,50 +202,40 @@ function SubmissionDetailComponent() {
   const config = getStatusConfig(submission.status);
   const Icon = config.icon;
 
-  // Create comment mutation
-  const createCommentMutation = useMutation(
-    orpc.comments.create.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
-      },
-    })
-  );
-
-  // Delete comment mutation
-  const deleteCommentMutation = useMutation(
-    orpc.comments.delete.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
-      },
-    })
-  );
-
-  const [newComment, setNewComment] = useState("");
-
-  const handleSubmitComment = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!newComment.trim()) {
-        return;
-      }
-      createCommentMutation.mutate({
-        content: newComment.trim(),
-        submissionId: id,
-      });
-      setNewComment("");
-    },
-    [createCommentMutation, id, newComment]
-  );
-
-  const handleDeleteComment = useCallback(
-    (commentId: string) => {
-      if (!confirm("Are you sure you want to delete this comment?")) {
-        return;
-      }
-      deleteCommentMutation.mutate({ commentId });
-    },
-    [deleteCommentMutation]
-  );
+  // Resolved with early returns rather than a nested ternary.
+  const commentList = (() => {
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: biome approximates TanStack Query's overloaded useQuery return as a literal false; tsc infers `boolean`
+    if (commentsLoading) {
+      return COMMENT_SKELETON_KEYS.map((key) => <CommentSkeleton key={key} />);
+    }
+    if (commentsData?.length) {
+      return commentsData.map((comment) => (
+        <CommentItem
+          comment={comment}
+          isAuthor={comment.authorId === session?.user?.id}
+          isDeleting={
+            deleteCommentMutation.isPending &&
+            deleteCommentMutation.variables?.commentId === comment.id
+          }
+          key={comment.id}
+          onDelete={handleDeleteComment}
+        />
+      ));
+    }
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia>
+            <MessageSquareIcon className="size-6" />
+          </EmptyMedia>
+          <EmptyTitle>No comments yet</EmptyTitle>
+          <EmptyDescription>
+            Be the first to share your thoughts on this project.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  })();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -393,137 +467,159 @@ function SubmissionDetailComponent() {
           </section>
         ) : null}
 
-        {/* Comments */}
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display font-semibold text-foreground text-xl">
-              Comments
-            </h2>
-            <span className="text-muted-foreground text-sm">
-              {commentsData?.length ?? 0} comment
-              {commentsData?.length === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* Comment Form */}
-          {session?.user ? (
-            <Card className="mb-6">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Add a comment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmitComment}>
-                  <div className="flex gap-3">
-                    <Avatar className="h-10 w-10 shrink-0">
-                      <AvatarImage
-                        alt={session.user.name}
-                        src={session.user.image ?? ""}
-                      />
-                      <AvatarFallback>
-                        {session.user.name?.[0]?.toUpperCase() ?? "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <Textarea
-                        className="mb-2 min-h-[80px]"
-                        disabled={createCommentMutation.isPending}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Write a comment..."
-                        value={newComment}
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={
-                            createCommentMutation.isPending ||
-                            !newComment.trim()
-                          }
-                          type="submit"
-                        >
-                          {createCommentMutation.isPending ? (
-                            <>
-                              <svg
-                                className="mr-2 h-4 w-4 animate-spin"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  fill="none"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                />
-                                <path
-                                  className="opacity-75"
-                                  d="M12 2a10 10 0 0 1 10 10"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeLinecap="round"
-                                  strokeWidth="4"
-                                />
-                              </svg>
-                              Posting...
-                            </>
-                          ) : (
-                            "Post Comment"
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="mb-6 rounded-lg bg-muted/30 p-4 text-center text-muted-foreground text-sm">
-              <Link
-                className="font-medium text-primary hover:underline"
-                to="/login"
-              >
-                Sign in
-              </Link>{" "}
-              to add a comment
-            </div>
-          )}
-
-          {/* Comment List */}
-          <div className="space-y-4">
-            {commentsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <CommentSkeleton key={i} />
-              ))
-            ) : commentsData && commentsData.length > 0 ? (
-              commentsData.map((comment) => (
-                <CommentItem
-                  comment={comment}
-                  currentUserId={session?.user?.id}
-                  isAuthor={comment.authorId === session?.user?.id}
-                  isDeleting={
-                    deleteCommentMutation.isPending &&
-                    deleteCommentMutation.variables?.commentId === comment.id
-                  }
-                  key={comment.id}
-                  onDelete={handleDeleteComment}
-                />
-              ))
-            ) : (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia>
-                    <MessageSquareIcon className="size-6" />
-                  </EmptyMedia>
-                  <EmptyTitle>No comments yet</EmptyTitle>
-                  <EmptyDescription>
-                    Be the first to share your thoughts on this project.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            )}
-          </div>
-        </section>
+        <CommentsSection
+          commentCount={commentsData?.length ?? 0}
+          commentList={commentList}
+          createCommentMutation={createCommentMutation}
+          handleNewCommentChange={handleNewCommentChange}
+          handleSubmitComment={handleSubmitComment}
+          newComment={newComment}
+          userImage={session?.user?.image}
+          userName={session?.user?.name ?? ""}
+        />
       </div>
+
+      <Dialog
+        onOpenChange={handleDialogOpenChange}
+        open={pendingDeleteId !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this comment?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. The comment will be marked as deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={cancelDelete} type="button" variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={confirmDelete} type="button" variant="destructive">
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+interface CommentsSectionProps {
+  commentCount: number;
+  commentList: React.ReactNode;
+  createCommentMutation: { isPending: boolean };
+  handleNewCommentChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  handleSubmitComment: (e: React.FormEvent) => void;
+  newComment: string;
+  userImage: string | null | undefined;
+  userName: string;
+}
+
+// The comment thread is its own component: it keeps SubmissionDetailComponent
+// inside the cognitive-complexity budget and makes the section readable alone.
+function CommentsSection({
+  commentCount,
+  commentList,
+  createCommentMutation,
+  handleNewCommentChange,
+  handleSubmitComment,
+  newComment,
+  userImage,
+  userName,
+}: CommentsSectionProps) {
+  return (
+    <section>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="font-display font-semibold text-foreground text-xl">
+          Comments
+        </h2>
+        <span className="text-muted-foreground text-sm">
+          {commentCount} comment{commentCount === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {/* Comment Form */}
+      {userName ? (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Add a comment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmitComment}>
+              <div className="flex gap-3">
+                <Avatar className="h-10 w-10 shrink-0">
+                  <AvatarImage alt={userName} src={userImage ?? ""} />
+                  <AvatarFallback>
+                    {userName[0]?.toUpperCase() ?? "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <Textarea
+                    className="mb-2 min-h-[80px]"
+                    disabled={createCommentMutation.isPending}
+                    onChange={handleNewCommentChange}
+                    placeholder="Write a comment..."
+                    value={newComment}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      disabled={
+                        createCommentMutation.isPending || !newComment.trim()
+                      }
+                      type="submit"
+                    >
+                      {createCommentMutation.isPending ? (
+                        <>
+                          <svg
+                            aria-hidden="true"
+                            className="mr-2 h-4 w-4 animate-spin"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              fill="none"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              d="M12 2a10 10 0 0 1 10 10"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeWidth="4"
+                            />
+                          </svg>
+                          Posting...
+                        </>
+                      ) : (
+                        "Post Comment"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="mb-6 rounded-lg bg-muted/30 p-4 text-center text-muted-foreground text-sm">
+          <Link
+            className="font-medium text-primary hover:underline"
+            to="/login"
+          >
+            Sign in
+          </Link>{" "}
+          to add a comment
+        </div>
+      )}
+
+      {/* Comment List */}
+      <div className="space-y-4">{commentList}</div>
+    </section>
   );
 }
 
@@ -535,7 +631,6 @@ interface CommentItemProps {
     id: string;
     isDeleted: number;
   };
-  currentUserId: string | undefined;
   isAuthor: boolean;
   isDeleting: boolean;
   onDelete: (commentId: string) => void;
@@ -543,11 +638,14 @@ interface CommentItemProps {
 
 function CommentItem({
   comment,
-  currentUserId,
   isAuthor,
   isDeleting,
   onDelete,
 }: CommentItemProps) {
+  const handleDelete = useCallback(() => {
+    onDelete(comment.id);
+  }, [comment.id, onDelete]);
+
   const isDeleted = comment.isDeleted === 1;
   const createdAt = new Date(comment.createdAt);
 
@@ -567,7 +665,9 @@ function CommentItem({
                 {formatRelativeTime(createdAt)}
               </span>
             </div>
-            <p className="{isDeleted ? 'text-muted-foreground italic' : 'text-foreground'} mt-1 text-sm">
+            <p
+              className={`mt-1 text-sm ${isDeleted ? "text-muted-foreground italic" : "text-foreground"}`}
+            >
               {isDeleted ? "[This comment has been deleted]" : comment.content}
             </p>
             {isAuthor && !isDeleted && (
@@ -575,12 +675,16 @@ function CommentItem({
                 <Button
                   className="text-error hover:bg-error/10 hover:text-error"
                   disabled={isDeleting}
-                  onClick={() => onDelete(comment.id)}
+                  onClick={handleDelete}
                   size="sm"
                   variant="ghost"
                 >
                   {isDeleting ? (
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                    <svg
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin"
+                      viewBox="0 0 24 24"
+                    >
                       <circle
                         className="opacity-25"
                         cx="12"

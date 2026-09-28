@@ -24,12 +24,19 @@ import {
   MessageSquareIcon,
   UsersIcon,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { type ChangeEvent, useCallback, useMemo, useState } from "react";
 
 import { formatRelativeTime } from "@/lib/utils";
 import { type client, orpc } from "@/utils/orpc";
 
 const PAGE_SIZE = 20;
+
+// Precomputed so the loading placeholders get stable keys that are not derived
+// from an array index.
+const SKELETON_KEYS = Array.from(
+  { length: 5 },
+  (_, i) => `ballot-skeleton-${i}`
+);
 
 type BallotItem = Awaited<
   ReturnType<typeof client.submissions.gallery>
@@ -74,7 +81,7 @@ function VoteComponent() {
   });
 
   // Fetch user's votes for the event
-  const { data: myVotesData, isLoading: myVotesLoading } = useQuery({
+  const { data: myVotesData } = useQuery({
     ...orpc.voting.myVotes.queryOptions({ input: { eventId } }),
     enabled: !!eventId,
   });
@@ -189,20 +196,72 @@ function VoteComponent() {
     setPage((p) => p + 1);
   }, []);
 
+  const handleReload = useCallback(() => {
+    window.location.reload();
+  }, []);
+
+  const handleSortChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
+    setSortBy(e.target.value as SortBy);
+  }, []);
+
   if (galleryError) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <p className="text-error">Failed to load ballot. Please try again.</p>
-        <Button
-          className="mt-4"
-          onClick={() => window.location.reload()}
-          type="button"
-        >
+        <Button className="mt-4" onClick={handleReload} type="button">
           Retry
         </Button>
       </div>
     );
   }
+
+  // Resolved with early returns rather than a nested ternary, so each ballot
+  // state reads as its own branch.
+  const ballotContent = (() => {
+    if (isPending) {
+      return SKELETON_KEYS.map((key) => <BallotItemSkeleton key={key} />);
+    }
+    if (ballotItems.length === 0) {
+      return (
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia>
+              <UsersIcon className="size-6" />
+            </EmptyMedia>
+            <EmptyTitle>No projects on the ballot</EmptyTitle>
+            <EmptyDescription>
+              No submitted projects are available for voting yet.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      );
+    }
+    return (
+      <>
+        {ballotItems.map((item) => (
+          <BallotCard
+            isVoting={voteMutation.isPending || unvoteMutation.isPending}
+            item={item}
+            key={item.id}
+            onUnvote={handleUnvote}
+            onVote={handleVote}
+          />
+        ))}
+        {hasMore ? (
+          <div className="text-center">
+            <Button
+              className="w-full sm:w-auto"
+              onClick={handleLoadMore}
+              type="button"
+              variant="outline"
+            >
+              Load more
+            </Button>
+          </div>
+        ) : null}
+      </>
+    );
+  })();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
@@ -224,10 +283,13 @@ function VoteComponent() {
 
       {/* Sort Controls */}
       <div className="mb-6 flex items-center gap-4">
-        <label className="text-muted-foreground text-sm">Sort by:</label>
+        <label className="text-muted-foreground text-sm" htmlFor="ballot-sort">
+          Sort by:
+        </label>
         <select
           className="flex h-9 w-full max-w-xs items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          onChange={(e) => setSortBy(e.target.value as SortBy)}
+          id="ballot-sort"
+          onChange={handleSortChange}
           value={sortBy}
         >
           <option value="influence">Influence (√votes)</option>
@@ -237,49 +299,7 @@ function VoteComponent() {
       </div>
 
       {/* Ballot List */}
-      <div className="space-y-4">
-        {isPending ? (
-          Array.from({ length: 5 }).map((_, i) => (
-            <BallotItemSkeleton key={i} />
-          ))
-        ) : ballotItems.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia>
-                <UsersIcon className="size-6" />
-              </EmptyMedia>
-              <EmptyTitle>No projects on the ballot</EmptyTitle>
-              <EmptyDescription>
-                No submitted projects are available for voting yet.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <>
-            {ballotItems.map((item) => (
-              <BallotCard
-                isVoting={voteMutation.isPending || unvoteMutation.isPending}
-                item={item}
-                key={item.id}
-                onUnvote={handleUnvote}
-                onVote={handleVote}
-              />
-            ))}
-            {hasMore ? (
-              <div className="text-center">
-                <Button
-                  className="w-full sm:w-auto"
-                  onClick={handleLoadMore}
-                  type="button"
-                  variant="outline"
-                >
-                  Load more
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-      </div>
+      <div className="space-y-4">{ballotContent}</div>
 
       {/* Voting Info */}
       <div className="mt-8 rounded-lg bg-muted/30 p-4 text-muted-foreground text-sm">
@@ -291,9 +311,12 @@ function VoteComponent() {
           </li>
           <li>You can change your votes at any time before voting closes.</li>
           <li>
-            {countsLoading
-              ? "Loading vote counts..."
-              : "Vote counts update in real time."}
+            {
+              // biome-ignore lint/suspicious/noUnnecessaryConditions: biome approximates TanStack Query's overloaded useQuery return as a literal false; tsc infers `boolean`
+              countsLoading
+                ? "Loading vote counts..."
+                : "Vote counts update in real time."
+            }
           </li>
         </ul>
       </div>
@@ -312,6 +335,25 @@ function BallotCard({
   onUnvote: (submissionId: string) => void;
   isVoting: boolean;
 }) {
+  // Three distinct button states, resolved without a nested ternary.
+  let voteIcon = <HeartOffIcon className="mr-2 h-4 w-4" />;
+  let voteLabel = "Vote";
+  if (isVoting) {
+    voteIcon = <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />;
+    voteLabel = "";
+  } else if (item.userVoted) {
+    voteIcon = <HeartIcon className="mr-2 h-4 w-4 fill-current" />;
+    voteLabel = "Voted";
+  }
+
+  const handleToggle = useCallback(() => {
+    if (item.userVoted) {
+      onUnvote(item.id);
+    } else {
+      onVote(item.id);
+    }
+  }, [item.id, item.userVoted, onUnvote, onVote]);
+
   return (
     <Card className="flex flex-col gap-4 sm:flex-row" variant="interactive">
       <div className="relative aspect-video w-full max-w-xs shrink-0 overflow-hidden rounded-lg bg-muted">
@@ -378,25 +420,12 @@ function BallotCard({
             <Button
               className={item.userVoted ? "bg-primary" : ""}
               disabled={isVoting}
-              onClick={() =>
-                item.userVoted ? onUnvote(item.id) : onVote(item.id)
-              }
+              onClick={handleToggle}
               size="sm"
               variant={item.userVoted ? "default" : "outline"}
             >
-              {isVoting ? (
-                <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-              ) : item.userVoted ? (
-                <>
-                  <HeartIcon className="mr-2 h-4 w-4 fill-current" />
-                  Voted
-                </>
-              ) : (
-                <>
-                  <HeartOffIcon className="mr-2 h-4 w-4" />
-                  Vote
-                </>
-              )}
+              {voteIcon}
+              {voteLabel}
             </Button>
           </div>
         </CardContent>

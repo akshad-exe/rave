@@ -33,7 +33,7 @@ import {
   PlusIcon,
   UsersIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { type client, orpc } from "@/utils/orpc";
@@ -67,30 +67,6 @@ function TeamsComponent() {
     orpc.teams.acceptInvitation.mutationOptions()
   );
 
-  // Auto-accept when arriving via invite link (?token=…)
-  useEffect(() => {
-    if (!token) {
-      return;
-    }
-    acceptInvitation
-      .mutateAsync({ token })
-      .then(() => {
-        toast.success("You joined the team!");
-        queryClient
-          .invalidateQueries(
-            orpc.teams.listByEvent.queryOptions({ input: { eventId: "" } })
-          )
-          .catch(() => undefined);
-      })
-      .catch((err: unknown) => {
-        const msg =
-          err instanceof Error ? err.message : "Could not accept invite";
-        toast.error(msg);
-      });
-    // Only run once on first render when token is present
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const invalidateTeams = useCallback(() => {
     queryClient
       .invalidateQueries(
@@ -98,6 +74,32 @@ function TeamsComponent() {
       )
       .catch(() => undefined);
   }, [queryClient]);
+
+  const acceptedTokenRef = useRef<string | null>(null);
+
+  // Auto-accept when arriving via invite link (?token=…). Dependencies are
+  // declared honestly so a token that arrives after first render is still
+  // accepted; the ref stops the same token being accepted twice.
+  useEffect(() => {
+    if (!token || acceptedTokenRef.current === token) {
+      return;
+    }
+    acceptedTokenRef.current = token;
+    acceptInvitation.mutate(
+      { token },
+      {
+        onSuccess: () => {
+          toast.success("You joined the team!");
+          invalidateTeams();
+        },
+        onError: (err: unknown) => {
+          toast.error(
+            err instanceof Error ? err.message : "Could not accept invite"
+          );
+        },
+      }
+    );
+  }, [token, acceptInvitation, invalidateTeams]);
 
   const skeletonKeys = ["a", "b", "c"] as const;
 
