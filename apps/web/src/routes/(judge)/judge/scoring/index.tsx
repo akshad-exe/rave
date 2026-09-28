@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@rave/ui/components/card";
+import { Progress } from "@rave/ui/components/progress";
 import { Separator } from "@rave/ui/components/separator";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { Textarea } from "@rave/ui/components/textarea";
@@ -223,6 +224,7 @@ function JudgeScoringComponent() {
         <div className="space-y-6 lg:col-span-3">
           <SubmissionOverview
             assignment={assignment}
+            rubricIsWeighted={rubric?.isWeighted ?? true}
             submission={assignmentDetail?.submission}
             totalScore={totalScore}
           />
@@ -232,7 +234,7 @@ function JudgeScoringComponent() {
               <CardTitle>Scoring Criteria</CardTitle>
               <CardDescription>
                 {rubric
-                  ? `Rate each criterion from ${criteria[0]?.minScore ?? 0} to ${criteria[0]?.maxScore ?? 10}. Weights are applied automatically.`
+                  ? `Rate each criterion from ${criteria[0]?.minScore ?? 0} to ${criteria[0]?.maxScore ?? 10}. ${rubric.isWeighted ? "Criterion weights are shown below — the authoritative weighted total is computed by the server on submission." : "Scores are averaged across criteria."}`
                   : "This assignment has no rubric attached."}
               </CardDescription>
             </CardHeader>
@@ -310,8 +312,10 @@ function SubmissionOverview({
   assignment,
   submission,
   totalScore,
+  rubricIsWeighted,
 }: {
   assignment: AssignmentSummary;
+  rubricIsWeighted: boolean;
   submission:
     | Awaited<
         ReturnType<typeof client.assignments.getAssignedSubmission>
@@ -359,7 +363,12 @@ function SubmissionOverview({
               <p className="font-bold font-display text-3xl text-primary">
                 {totalScore.toFixed(1)}
               </p>
-              <p className="text-muted-foreground text-sm">Weighted Total</p>
+              <p className="text-muted-foreground text-sm">
+                {rubricIsWeighted ? "Weighted preview" : "Score preview"}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Server computes final
+              </p>
             </div>
           </div>
         </div>
@@ -495,13 +504,20 @@ function ScoringCriterion({
               {criterion.description}
             </p>
           ) : null}
+          <p className="mt-1 text-muted-foreground text-xs">
+            Score range: {criterion.minScore}–{criterion.maxScore}
+          </p>
         </div>
         <div className="flex items-center gap-2 font-bold font-display text-lg text-primary">
           {score ?? "—"}
           <span className="text-muted-foreground">/ {criterion.maxScore}</span>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      {/* Weight progress bar — purely informational */}
+      {Number(criterion.weight) > 0 && (
+        <Progress className="mb-3 h-1.5" value={Number(criterion.weight)} />
+      )}
+      <div className="flex flex-wrap items-center gap-2">
         {options.map((value) => (
           <button
             className={`flex h-10 w-10 items-center justify-center rounded-lg font-medium text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${score === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/50"}`}
