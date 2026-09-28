@@ -5,6 +5,7 @@ import {
   eventIdInput,
   listCommentsInput,
   unvoteInput,
+  verifyVotingInput,
   voteCountsInput,
   voteInput,
 } from "../schemas/voting";
@@ -47,6 +48,19 @@ export const votingRouter = {
     .input(unvoteInput)
     .handler(({ context, input }) =>
       context.services.voting.unvote(context, input)
+    ),
+
+  // Verify voting email
+  verifyVoting: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/voting/verify",
+      summary: "Verify email for gated voting",
+      tags: ["Voting"],
+    })
+    .input(verifyVotingInput)
+    .handler(({ context, input }) =>
+      context.services.voting.verifyVoting(context, input)
     ),
 
   // Cast a vote
