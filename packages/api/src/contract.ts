@@ -404,7 +404,7 @@ export interface VotingService {
   counts: (
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.voteCountsInput>
-  ) => Promise<Array<{ submissionId: string; votes: number }>>;
+  ) => Promise<Array<{ submissionId: string; votes: number; influence: number }>>;
   myVotes: (
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.eventIdInput>
@@ -413,10 +413,17 @@ export interface VotingService {
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.unvoteInput>
   ) => Promise<{ ok: boolean }>;
+  verifyVoting: (
+    ctx: ServiceContext,
+    input: z.infer<typeof votingSchemas.verifyVotingInput>
+  ) => Promise<{ ok: boolean }>;
   vote: (
     ctx: ServiceContext,
     input: z.infer<typeof votingSchemas.voteInput>
-  ) => Promise<{ ok: boolean }>;
+  ) => Promise<
+    | { ok: boolean }
+    | { message: string; code: string; verificationId: string; expiresAt: Date }
+  >;
 }
 
 export interface CommentsService {

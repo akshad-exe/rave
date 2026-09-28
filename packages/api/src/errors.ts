@@ -1,9 +1,15 @@
 import { ORPCError } from "@orpc/server";
 
 export function unauthorized(
-  message = "Unauthorized"
+  message: string | Record<string, unknown> = "Unauthorized"
 ): ORPCError<string, unknown> {
-  return new ORPCError("UNAUTHORIZED", { message });
+  if (typeof message === "string") {
+    return new ORPCError("UNAUTHORIZED", { message });
+  }
+  return new ORPCError("UNAUTHORIZED", {
+    data: message,
+    message: message.message as string,
+  });
 }
 
 export function forbidden(message = "Forbidden"): ORPCError<string, unknown> {
