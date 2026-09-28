@@ -7,7 +7,12 @@ import {
   user,
   verification,
 } from "./schema/auth";
-import { comment, vote } from "./schema/community";
+import {
+  ballotSeed,
+  comment,
+  vote,
+  votingVerification,
+} from "./schema/community";
 import { event, eventOrganizer, prize, track } from "./schema/events";
 import {
   judgeAssignment,
@@ -25,6 +30,7 @@ export const relations = {
     {
       account,
       auditLog,
+      ballotSeed,
       comment,
       event,
       eventOrganizer,
@@ -44,6 +50,7 @@ export const relations = {
       userProfile,
       verification,
       vote,
+      votingVerification,
     },
     (r) => ({
       event: {
