@@ -6,13 +6,16 @@ import {
   forbidden,
   isUniqueViolation,
   notFound,
+  unauthorized,
 } from "@rave/api/errors";
 import { generateId } from "@rave/api/id";
-import { event, submission, vote } from "@rave/db";
-import { and, count, eq } from "drizzle-orm";
+import { event, submission, user, vote, votingVerification } from "@rave/db";
+import { and, count, eq, gt } from "drizzle-orm";
 
 import { requireUserId } from "../../lib/assert";
 import { assertVotingOpen } from "./helpers";
+
+const VERIFICATION_TOKEN_EXPIRY_HOURS = 24;
 
 export const votingService: VotingService = {
   // Get vote counts for an event (respects visibility)
@@ -47,10 +50,14 @@ export const votingService: VotingService = {
       .where(and(...conditions))
       .groupBy(vote.submissionId);
 
-    return rows.map((r) => ({
-      submissionId: r.submissionId,
-      votes: Number(r.cnt),
-    }));
+    return rows.map((r) => {
+      const votes = Number(r.cnt);
+      return {
+        influence: Math.sqrt(votes),
+        submissionId: r.submissionId,
+        votes,
+      };
+    });
   },
 
   // My votes for an event
@@ -86,6 +93,47 @@ export const votingService: VotingService = {
     return { ok: true };
   },
 
+  // Verify voting email
+  async verifyVoting(ctx, input) {
+    const userId = requireUserId(ctx);
+
+    const verificationRows = await ctx.db
+      .select()
+      .from(votingVerification)
+      .where(
+        and(
+          eq(votingVerification.id, input.verificationId),
+          eq(votingVerification.userId, userId),
+          gt(votingVerification.expiresAt, new Date())
+        )
+      )
+      .limit(1);
+
+    const [verification] = verificationRows;
+    if (!verification) {
+      throw notFound("Verification token not found or expired");
+    }
+
+    if (verification.verified === 1) {
+      throw badRequest("Verification token already used");
+    }
+
+    await ctx.db
+      .update(votingVerification)
+      .set({ updatedAt: new Date(), verified: 1 })
+      .where(eq(votingVerification.id, input.verificationId));
+
+    await writeAudit(ctx, {
+      action: "vote.verify",
+      eventId: verification.eventId,
+      metadata: { submissionId: verification.submissionId },
+      resourceId: input.verificationId,
+      resourceType: "voting_verification",
+    });
+
+    return { ok: true };
+  },
+
   // Cast a vote
   async vote(ctx, input) {
     const userId = requireUserId(ctx);
@@ -118,6 +166,59 @@ export const votingService: VotingService = {
       throw badRequest(
         `Maximum of ${ev.maxVotesPerUser} votes per user for this event`
       );
+    }
+
+    // For gated voting, check if user has valid verification
+    if (ev.votingMode === "gated") {
+      const verificationRows = await ctx.db
+        .select({ id: votingVerification.id })
+        .from(votingVerification)
+        .where(
+          and(
+            eq(votingVerification.userId, userId),
+            eq(votingVerification.eventId, input.eventId),
+            eq(votingVerification.verified, 1),
+            gt(votingVerification.expiresAt, new Date())
+          )
+        )
+        .limit(1);
+
+      if (!verificationRows.length) {
+        // Create a new verification token
+        const verificationId = generateId("vvf");
+        const expiresAt = new Date();
+        expiresAt.setHours(
+          expiresAt.getHours() + VERIFICATION_TOKEN_EXPIRY_HOURS
+        );
+
+        // Get user email
+        const userRows = await ctx.db
+          .select({ email: user.email })
+          .from(user)
+          .where(eq(user.id, userId));
+
+        const [userRecord] = userRows;
+        if (!userRecord) {
+          throw notFound("User not found");
+        }
+
+        await ctx.db.insert(votingVerification).values({
+          email: userRecord.email,
+          eventId: input.eventId,
+          expiresAt,
+          id: verificationId,
+          submissionId: input.submissionId,
+          userId,
+          verified: 0,
+        });
+
+        throw unauthorized({
+          code: "VERIFICATION_REQUIRED",
+          expiresAt,
+          message: "Email verification required",
+          verificationId,
+        });
+      }
     }
 
     const voteId = generateId("vot");
