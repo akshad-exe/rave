@@ -2,7 +2,7 @@ import { writeAudit } from "@rave/api/audit";
 import type { SubmissionsService } from "@rave/api/contract";
 import { badRequest, forbidden, notFound } from "@rave/api/errors";
 import { generateId } from "@rave/api/id";
-import { event, submission, team, teamMember } from "@rave/db";
+import { ballotSeed, event, submission, team, teamMember } from "@rave/db";
 import { and, eq, ilike, inArray, or, type SQL, sql } from "drizzle-orm";
 
 import {
@@ -11,6 +11,27 @@ import {
   requireUserId,
 } from "../../lib/assert";
 import { assertSubmissionOpen, assertSubmissionOwner } from "./helpers";
+
+// Deterministic shuffle using Fisher-Yates algorithm with a seeded random number generator
+function deterministicShuffle<T>(array: T[], seed: number): T[] {
+  const result = [...array];
+  let randomSeed = seed;
+
+  // Simple linear congruential generator for deterministic randomness
+  function nextRandom(): number {
+    randomSeed = (randomSeed * 1_664_525 + 1_013_904_223) % 4_294_967_296;
+    return randomSeed / 4_294_967_296;
+  }
+
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(nextRandom() * (i + 1));
+    const temp = result[i];
+    result[i] = result[j] as T;
+    result[j] = temp as T;
+  }
+
+  return result;
+}
 
 export const submissionsService: SubmissionsService = {
   // Create draft submission
@@ -179,7 +200,8 @@ export const submissionsService: SubmissionsService = {
 
     const offset = (input.page - 1) * input.limit;
 
-    const rows = await ctx.db
+    // Fetch all matching submissions first (for random sort we need all)
+    const allRows = await ctx.db
       .select({
         demoVideoUrl: submission.demoVideoUrl,
         id: submission.id,
@@ -195,12 +217,61 @@ export const submissionsService: SubmissionsService = {
         trackId: submission.trackId,
       })
       .from(submission)
-      .where(and(...conditions))
-      .orderBy(
-        input.sortBy === "name" ? submission.name : submission.submittedAt
-      )
-      .limit(input.limit)
-      .offset(offset);
+      .where(and(...conditions));
+
+    // Handle sorting
+    let sortedRows = allRows;
+    if (input.sortBy === "name") {
+      sortedRows = allRows.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (input.sortBy === "random") {
+      // Get or create ballot seed for this user/event
+      const userId = ctx.session?.user?.id;
+      let seed = 0;
+      if (userId) {
+        const seedRows = await ctx.db
+          .select({ seed: ballotSeed.seed })
+          .from(ballotSeed)
+          .where(
+            and(
+              eq(ballotSeed.userId, userId),
+              eq(ballotSeed.eventId, input.eventId)
+            )
+          )
+          .limit(1);
+
+        if (seedRows.length > 0) {
+          const [seedRow] = seedRows;
+          if (seedRow) {
+            ({ seed } = seedRow);
+          }
+        } else {
+          // Generate new seed
+          seed = Math.floor(Math.random() * 2_147_483_647);
+          await ctx.db.insert(ballotSeed).values({
+            eventId: input.eventId,
+            id: generateId("bld"),
+            seed,
+            userId,
+          });
+        }
+      } else {
+        // For anonymous users, use a session-based seed or event-based seed
+        seed = Math.floor(Math.random() * 2_147_483_647);
+      }
+
+      // Deterministic shuffle using Fisher-Yates with seeded random
+      sortedRows = deterministicShuffle(allRows, seed);
+    } else {
+      // Default: recent (by submittedAt desc)
+      sortedRows = allRows.sort(
+        (a, b) =>
+          new Date(b.submittedAt ?? 0).getTime() -
+          new Date(a.submittedAt ?? 0).getTime()
+      );
+    }
+
+    // Apply pagination
+    const rows = sortedRows.slice(offset, offset + input.limit);
 
     return { limit: input.limit, page: input.page, submissions: rows };
   },
