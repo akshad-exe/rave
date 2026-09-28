@@ -8,6 +8,11 @@ dist
 build
 *.tsbuildinfo
 
+# `bun run compile` emits a self-contained ~100MB executable plus its sourcemap
+# next to the app. Both are build artifacts, never sources.
+apps/server/server
+apps/server/index.js.map
+
 # Generated files
 apps/web/src/routeTree.gen.ts
 local.db
