@@ -450,6 +450,14 @@ export interface ExportsService {
     ctx: ServiceContext,
     input: z.infer<typeof exportSchemas.eventIdInput>
   ) => Promise<{ csv: string }>;
+  importScores: (
+    ctx: ServiceContext,
+    input: z.infer<typeof exportSchemas.importScoresInput>
+  ) => Promise<z.infer<typeof exportSchemas.importResult>>;
+  importSubmissions: (
+    ctx: ServiceContext,
+    input: z.infer<typeof exportSchemas.importSubmissionsInput>
+  ) => Promise<z.infer<typeof exportSchemas.importResult>>;
   rawScores: (
     ctx: ServiceContext,
     input: z.infer<typeof exportSchemas.eventIdInput>

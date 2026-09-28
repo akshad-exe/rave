@@ -1,5 +1,9 @@
 import { protectedProcedure } from "../index";
-import { eventIdInput } from "../schemas/exports";
+import {
+  eventIdInput,
+  importScoresInput,
+  importSubmissionsInput,
+} from "../schemas/exports";
 
 export const exportsRouter = {
   // Judge assignments CSV
@@ -13,6 +17,31 @@ export const exportsRouter = {
     .input(eventIdInput)
     .handler(({ context, input }) =>
       context.services.exports.assignments(context, input)
+    ),
+
+  // Bulk import scores CSV
+  importScores: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/events/{eventId}/imports/scores",
+      summary: "Bulk import scores from CSV",
+      tags: ["Exports"],
+    })
+    .input(importScoresInput)
+    .handler(({ context, input }) =>
+      context.services.exports.importScores(context, input)
+    ),
+  // Bulk import submissions CSV
+  importSubmissions: protectedProcedure
+    .route({
+      method: "POST",
+      path: "/events/{eventId}/imports/submissions",
+      summary: "Bulk import submissions from CSV",
+      tags: ["Exports"],
+    })
+    .input(importSubmissionsInput)
+    .handler(({ context, input }) =>
+      context.services.exports.importSubmissions(context, input)
     ),
 
   // Raw scores CSV

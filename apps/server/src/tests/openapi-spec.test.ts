@@ -44,7 +44,8 @@ describe("openapi spec", () => {
 
     expect(untagged).toEqual([]);
     expect(tags.size).toBeGreaterThan(5);
-    expect(methods.POST).toBe(21);
+    // 21 base procedures plus the two bulk import endpoints.
+    expect(methods.POST).toBe(23);
     expect(typeof methods.GET).toBe("number");
     expect(typeof methods.DELETE).toBe("number");
     expect(typeof methods.PATCH).toBe("number");

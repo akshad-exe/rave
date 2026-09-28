@@ -1,5 +1,7 @@
 import type { ServiceContext } from "@rave/api/context";
 import type { ExportsService } from "@rave/api/contract";
+import { generateId } from "@rave/api/id";
+import type * as exportSchemas from "@rave/api/schemas/exports";
 import {
   judgeAssignment,
   result,
@@ -8,10 +10,233 @@ import {
   team,
   teamMember,
 } from "@rave/db";
-import { eq } from "drizzle-orm";
-
+import { and, eq } from "drizzle-orm";
 import { assertEventOrganizer } from "../../lib/assert";
-import { toCSV } from "../../lib/csv";
+import { parseCSVRecordsWithRows, toCSV } from "../../lib/csv";
+
+type ImportSummary = import("zod").infer<typeof exportSchemas.importResult>;
+
+const SUBMISSION_STATUSES = ["draft", "submitted", "locked"] as const;
+
+/**
+ * Field lookup that tolerates a CSV missing the column entirely.
+ *
+ * The parser assigns a string for every column a CSV actually has, but a file
+ * can simply omit one, and this repo enables noUncheckedIndexedAccess, so an
+ * absent column is genuinely `string | undefined`.
+ */
+function field(record: Record<string, string>, key: string): string {
+  return record[key] ?? "";
+}
+
+interface RowError {
+  field: string;
+  message: string;
+  row: number;
+}
+
+function toSubmissionStatus(value: string | undefined) {
+  const candidate = (value ?? "").trim().toLowerCase();
+  return SUBMISSION_STATUSES.find((status) => status === candidate) ?? "draft";
+}
+
+async function submissionExists(ctx: ServiceContext, id: string) {
+  const rows = await ctx.db
+    .select({ id: submission.id })
+    .from(submission)
+    .where(eq(submission.id, id))
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function scoreExists(ctx: ServiceContext, id: string) {
+  const rows = await ctx.db
+    .select({ id: score.id })
+    .from(score)
+    .where(eq(score.id, id))
+    .limit(1);
+  return rows.length > 0;
+}
+
+function validateSubmissionRow(
+  record: Record<string, string>,
+  row: number
+): RowError | null {
+  if (!field(record, "name").trim()) {
+    return { field: "name", message: "name is required", row };
+  }
+  return null;
+}
+
+function validateScoreRow(
+  record: Record<string, string>,
+  row: number
+): RowError | null {
+  const problems: string[] = [];
+  if (!field(record, "submission_id").trim()) {
+    problems.push("submission_id is required");
+  }
+  if (!field(record, "judge_id").trim()) {
+    problems.push("judge_id is required");
+  }
+  const rawTotal = field(record, "total_score");
+  if (rawTotal && Number.isNaN(Number(rawTotal))) {
+    problems.push(`total_score is not a number: ${rawTotal}`);
+  }
+  return problems.length > 0
+    ? { field: "row", message: problems.join("; "), row }
+    : null;
+}
+
+async function writeSubmissionRow(
+  ctx: ServiceContext,
+  eventId: string,
+  record: Record<string, string>,
+  summary: ImportSummary,
+  row: number
+): Promise<void> {
+  const values = {
+    eventId,
+    liveDemoUrl: field(record, "live_demo_url") || null,
+    name: field(record, "name").trim(),
+    repositoryUrl: field(record, "repository_url") || null,
+    tagline: field(record, "tagline") || null,
+    techTags: field(record, "tech_tags")
+      .split(";")
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    // Foreign keys take undefined rather than null when absent.
+    trackId: field(record, "track_id") || undefined,
+  };
+
+  try {
+    if (
+      field(record, "id") &&
+      (await submissionExists(ctx, field(record, "id")))
+    ) {
+      await ctx.db
+        .update(submission)
+        .set(values)
+        .where(eq(submission.id, field(record, "id")));
+      summary.updated += 1;
+      return;
+    }
+    await ctx.db.insert(submission).values({
+      ...values,
+      id: field(record, "id") || generateId("sub"),
+      // The column is an enum, so a spreadsheet value is narrowed rather than
+      // passed through as an arbitrary string.
+      status: toSubmissionStatus(field(record, "status")),
+      submitterId: field(record, "submitter_id") || "",
+      teamId: field(record, "team_id") || undefined,
+    });
+    summary.created += 1;
+  } catch (error) {
+    summary.errors.push({
+      field: "row",
+      message: error instanceof Error ? error.message : "insert failed",
+      row,
+    });
+    summary.skipped += 1;
+  }
+}
+
+async function writeScoreRow(
+  ctx: ServiceContext,
+  eventId: string,
+  record: Record<string, string>,
+  summary: ImportSummary,
+  row: number
+): Promise<void> {
+  const judgeId = field(record, "judge_id");
+  const submissionId = field(record, "submission_id");
+  const rubricId = field(record, "rubric_id");
+  const rawTotal = field(record, "total_score");
+
+  // Scores hang off a judge assignment. If an organizer imports scores before
+  // assigning judges there is nothing to attach to, so the row is reported
+  // rather than silently dropped.
+  const assignment = await findAssignment(ctx, eventId, judgeId, submissionId);
+  if (!assignment) {
+    summary.errors.push({
+      field: "submission_id",
+      message:
+        "no judge assignment for this judge and submission; assign judges before importing scores",
+      row,
+    });
+    summary.skipped += 1;
+    return;
+  }
+
+  if (!rubricId) {
+    summary.errors.push({
+      field: "rubric_id",
+      message: "rubric_id is required to record a score",
+      row,
+    });
+    summary.skipped += 1;
+    return;
+  }
+
+  const values = {
+    assignmentId: assignment,
+    criterionScores: [] as Array<{ criterionId: string; score: number }>,
+    eventId,
+    feedback: field(record, "feedback") || null,
+    isLocked: field(record, "is_locked") === "true",
+    judgeId,
+    rubricId,
+    submissionId,
+    // numeric() is stored as a string, matching how the export renders it.
+    totalScore: rawTotal || null,
+  };
+
+  try {
+    if (
+      field(record, "score_id") &&
+      (await scoreExists(ctx, field(record, "score_id")))
+    ) {
+      await ctx.db
+        .update(score)
+        .set(values)
+        .where(eq(score.id, field(record, "score_id")));
+      summary.updated += 1;
+      return;
+    }
+    await ctx.db.insert(score).values({
+      ...values,
+      id: field(record, "score_id") || generateId("sco"),
+    });
+    summary.created += 1;
+  } catch (error) {
+    summary.errors.push({
+      field: "row",
+      message: error instanceof Error ? error.message : "insert failed",
+      row,
+    });
+    summary.skipped += 1;
+  }
+}
+
+async function findAssignment(
+  ctx: ServiceContext,
+  eventId: string,
+  judgeId: string,
+  submissionId: string
+): Promise<string | undefined> {
+  const [assignment] = await ctx.db
+    .select({ id: judgeAssignment.id })
+    .from(judgeAssignment)
+    .where(
+      and(
+        eq(judgeAssignment.eventId, eventId),
+        eq(judgeAssignment.judgeId, judgeId),
+        eq(judgeAssignment.submissionId, submissionId)
+      )
+    )
+    .limit(1);
+  return assignment?.id;
+}
 
 export const exportsService: ExportsService = {
   // Judge assignments CSV
@@ -49,6 +274,85 @@ export const exportsService: ExportsService = {
     ]);
 
     return { csv: toCSV(headers, csvRows) };
+  },
+
+  async importScores(ctx: ServiceContext, input) {
+    await assertEventOrganizer(ctx, input.eventId);
+
+    const summary: ImportSummary = {
+      created: 0,
+      errors: [],
+      skipped: 0,
+      updated: 0,
+    };
+
+    for (const { record, row } of parseCSVRecordsWithRows(input.csv)) {
+      const problem = validateScoreRow(record, row);
+      if (problem) {
+        summary.errors.push(problem);
+        summary.skipped += 1;
+        continue;
+      }
+
+      if (input.dryRun) {
+        if (
+          field(record, "score_id") &&
+          // biome-ignore lint/performance/noAwaitInLoops: per-row existence check, kept sequential so errors are reported in spreadsheet order
+          (await scoreExists(ctx, field(record, "score_id")))
+        ) {
+          summary.updated += 1;
+        } else {
+          summary.created += 1;
+        }
+        continue;
+      }
+
+      await writeScoreRow(ctx, input.eventId, record, summary, row);
+    }
+
+    return summary;
+  },
+  // ─── Bulk import ────────────────────────────────────────────────────────────
+  // The mirror of the exports above, so an organizer's own data round-trips:
+  // export, edit in a spreadsheet, import back. A row is keyed on its `id`
+  // column, so re-importing the same file updates rather than duplicates, and
+  // bad rows are reported individually instead of failing the whole file.
+
+  async importSubmissions(ctx: ServiceContext, input) {
+    await assertEventOrganizer(ctx, input.eventId);
+
+    const summary: ImportSummary = {
+      created: 0,
+      errors: [],
+      skipped: 0,
+      updated: 0,
+    };
+
+    for (const { record, row } of parseCSVRecordsWithRows(input.csv)) {
+      const problem = validateSubmissionRow(record, row);
+      if (problem) {
+        summary.errors.push(problem);
+        summary.skipped += 1;
+        continue;
+      }
+
+      if (input.dryRun) {
+        if (
+          field(record, "id") &&
+          // biome-ignore lint/performance/noAwaitInLoops: per-row existence check, kept sequential so errors are reported in spreadsheet order
+          (await submissionExists(ctx, field(record, "id")))
+        ) {
+          summary.updated += 1;
+        } else {
+          summary.created += 1;
+        }
+        continue;
+      }
+
+      await writeSubmissionRow(ctx, input.eventId, record, summary, row);
+    }
+
+    return summary;
   },
 
   // Raw scores CSV
