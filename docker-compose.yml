@@ -35,19 +35,21 @@ services:
       - path: apps/server/.env
         required: false
     environment:
+      # The image is a prebuilt binary: there is no watcher and no source to
+      # reload, so development mode buys nothing and actively breaks the
+      # container. It would also re-enable the varlock CLI load and pino-pretty,
+      # neither of which exists in the single-file image. Set explicitly because
+      # env_file above carries NODE_ENV=development for host-side `bun run dev`.
+      NODE_ENV: production
       CORS_ORIGIN: http://localhost:3001
       BETTER_AUTH_URL: http://localhost:3000
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-rave-dev-secret-not-for-production-use-0123456789}
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/rave
       MIGRATIONS_FOLDER: /app/packages/db/src/migrations
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
-        ]
+      # curl, not `node -e`: the runtime image ships the compiled binary and no
+      # node runtime, so a node-based probe would report unhealthy forever.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/"]
       interval: 10s
       timeout: 5s
       retries: 5
