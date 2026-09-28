@@ -29,3 +29,14 @@ export const listCommentsInput = z.object({
   page: z.number().int().min(1).default(1),
   submissionId: z.string(),
 });
+
+export const verifyVotingInput = z.object({
+  verificationId: z.string(),
+});
+
+export const verificationResponse = z.object({
+  code: z.string().optional(),
+  expiresAt: z.date().optional(),
+  message: z.string(),
+  verificationId: z.string().optional(),
+});

@@ -41,7 +41,7 @@ export const galleryInput = z.object({
   limit: z.number().int().min(1).max(100).default(20),
   page: z.number().int().min(1).default(1),
   search: z.string().optional(),
-  sortBy: z.enum(["recent", "name"]).default("recent"),
+  sortBy: z.enum(["recent", "name", "random"]).default("recent"),
   techTag: z.string().optional(),
   trackId: z.string().optional(),
 });
