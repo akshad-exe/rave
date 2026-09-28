@@ -337,7 +337,10 @@ export async function seedFixtures(
         submissionStartAt: new Date("2026-02-01T00:00:00Z"),
         tagline: "Sample event for the DOGFOOD acceptance checker",
         updatedAt: submissionsClose,
-        votingMode: "disabled",
+        // Voting is open on the seeded event so the T3 community-voting surface
+        // is demonstrable. Results stay hidden while the window is open, which
+        // is the same requirement T3 asks for.
+        votingMode: "authenticated",
       })
       .onConflictDoNothing();
 

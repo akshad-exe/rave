@@ -175,4 +175,33 @@ describe("Events", () => {
     const found = result.events.find((e) => e.slug === slug);
     expect(found).toBeTruthy();
   });
+  it("does not reset defaulted fields on a partial update", async () => {
+    // Regression: updateEventInput used to inherit createEventInput's defaults,
+    // so updating one field silently reset every other default — including
+    // isPublic, which made a public event private.
+    const org = await registerUser(app);
+    await setRole(org.id, "organizer");
+    const created = await createEvent(app, org.cookie, {
+      isPublic: true,
+      maxTeamSize: 7,
+    });
+
+    const updated = (await rpcOk(
+      app,
+      "events.update",
+      {
+        eventId: created.id,
+        votingMode: "authenticated",
+      },
+      org.cookie
+    )) as {
+      isPublic: boolean;
+      maxTeamSize: number;
+      votingMode: string;
+    };
+
+    expect(updated.votingMode).toBe("authenticated");
+    expect(updated.isPublic).toBe(true);
+    expect(updated.maxTeamSize).toBe(7);
+  });
 });

@@ -10,10 +10,10 @@ pitch = "Hackathon submission and judging platform: teams submit projects, organ
 
 [auth]
 # Cookies issued by the seed. The checker attaches these instead of logging in.
-organizer   = "Cookie: better-auth.session_token=YIbOKyVdFurPeaY3mHxpgR1YOMT2gcSo.FwBy53QKbuDBp32kMMTMM%2BseQhOk80JK%2BJ2dGbhH%2FSk%3D"
-judge_a     = "Cookie: better-auth.session_token=nhFW0Gy6HQFcZ2dOWbKAoiIGU6njGFzw.I6IOsT3W7Ihpgo7G14O0TaxQvvLT9IgqgrOnWzNUFfg%3D"
-judge_b     = "Cookie: better-auth.session_token=p7v3GYKL4dvqh3km0hkHu07seJYsJLbF.wazcQjaf2ki6vfAIL5aLh9Ou0TNDiSUFnSvag%2BaXLhQ%3D"
-participant = "Cookie: better-auth.session_token=IcGRu72RAvSpTRLzMGQI4CWlOoOBPA3q.BWlUc%2FAhu9Bsre%2BbyZjSrRN1NioAlMkFDW4isp7CUI0%3D"
+organizer   = "Cookie: better-auth.session_token=JWgiHVOVa91oYWa6bfbRtWS27quVLhzv.eOt1HHsJGPasdsxfWUb7ArPfOJl9Mwhj7bfEzJW3orc%3D"
+judge_a     = "Cookie: better-auth.session_token=QBjtfafYgFNfSqBoZD3RsZbRbQoSPrlD.T2wVFecjfwozpcE%2FIsViPnh%2B3fLERXpsFjO%2FmC9s0Y4%3D"
+judge_b     = "Cookie: better-auth.session_token=8zZHjXobKt1Qx9DmLvANCRomP8fThYhe.PAZRmz196q0TIX0%2BhKOCsKN9x6bmXWBk7z2uzfKOzy8%3D"
+participant = "Cookie: better-auth.session_token=DBEb4bTeWoZEoZbsiRwjzWyr1ENaxDpT.cqtMXpKGYQZQ48i3OsjkKWujdszchh8cPN2pXQG5HlA%3D"
 
 [routes]
 gallery      = "/gallery"

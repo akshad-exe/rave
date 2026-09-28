@@ -18,18 +18,27 @@ export const customQuestionSchema = z.object({
   type: z.enum(["text", "url", "textarea"]),
 });
 
-export const createEventInput = z.object({
-  allowIndividuals: z.boolean().default(true),
+/**
+ * Field shapes with no defaults.
+ *
+ * `createEventInput` layers defaults on top, but `updateEventInput` must NOT
+ * inherit them: a defaulted field inside a `.partial()` still resolves to its
+ * default when the client omits the key, so an update that only meant to change
+ * one field silently reset every other default — including `isPublic`, which
+ * turned a public event private.
+ */
+const eventFields = {
+  allowIndividuals: z.boolean(),
   coverImageUrl: z.url().optional(),
-  customQuestions: z.array(customQuestionSchema).default([]),
+  customQuestions: z.array(customQuestionSchema),
   description: z.string().max(10_000).optional(),
   endDate: z.iso.datetime().optional(),
-  isPublic: z.boolean().default(false),
+  isPublic: z.boolean(),
   judgingEndAt: z.iso.datetime().optional(),
   judgingStartAt: z.iso.datetime().optional(),
-  maxTeamSize: z.number().int().min(1).max(20).default(4),
-  maxVotesPerUser: z.number().int().min(1).max(50).default(3),
-  minTeamSize: z.number().int().min(1).default(1),
+  maxTeamSize: z.number().int().min(1).max(20),
+  maxVotesPerUser: z.number().int().min(1).max(50),
+  minTeamSize: z.number().int().min(1),
   name: z.string().min(3).max(120),
   registrationEndAt: z.iso.datetime().optional(),
   registrationStartAt: z.iso.datetime().optional(),
@@ -45,13 +54,27 @@ export const createEventInput = z.object({
   // "gated" must stay in step with votingModeEnum in packages/db, which already
   // stores it. Without it here the API rejects any event configured for gated
   // voting, even though the service layer handles the mode.
-  votingMode: z
-    .enum(["disabled", "open", "authenticated", "gated"])
-    .default("disabled"),
+  votingMode: z.enum(["disabled", "open", "authenticated", "gated"]),
   websiteUrl: z.url().optional(),
+};
+
+export const createEventInput = z.object({
+  ...eventFields,
+  allowIndividuals: eventFields.allowIndividuals.default(true),
+  customQuestions: eventFields.customQuestions.default([]),
+  isPublic: eventFields.isPublic.default(false),
+  maxTeamSize: eventFields.maxTeamSize.default(4),
+  maxVotesPerUser: eventFields.maxVotesPerUser.default(3),
+  minTeamSize: eventFields.minTeamSize.default(1),
+  votingMode: eventFields.votingMode.default("disabled"),
 });
 
-export const updateEventInput = createEventInput.partial().extend({
+/**
+ * Partial update, built from the default-free shapes on purpose. See the note on
+ * eventFields: inheriting `.default()` here would let an omitted key overwrite
+ * the stored value with its default.
+ */
+export const updateEventInput = z.object(eventFields).partial().extend({
   eventId: z.string(),
 });
 

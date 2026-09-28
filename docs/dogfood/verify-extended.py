@@ -69,19 +69,20 @@ def request(url, header=None, method="GET", body=None):
         return 0, f"{type(e).__name__}: {e}", {}
 
 
-def rpc_json(body):
-    """oRPC wraps RPC responses as {"json": {...}}; return the inner payload.
+def rpc_json(body, default=None):
+    """oRPC wraps RPC responses as {"json": <payload>}; return the payload.
 
-    Plain (non-RPC) routes are returned as-is.
+    The payload is not always a dict -- voting counts come back as a list -- so
+    it is returned as-is. Plain (non-RPC) routes are returned unchanged.
     """
     try:
         parsed = json.loads(body)
     except Exception:
-        return {}
+        return {} if default is None else default
     if isinstance(parsed, dict) and "json" in parsed:
         inner = parsed["json"]
-        return inner if isinstance(inner, dict) else {}
-    return parsed if isinstance(parsed, dict) else {}
+        return default if inner is None else inner
+    return parsed
 
 
 class Check:
@@ -231,55 +232,61 @@ def build_extended_checks(cfg, fixture):
         c.note(f"POST /rpc/voting/vote -> {status}: {body[:200]}")
     checks.append(c)
 
-    # Check vote count updates
+    # Results must stay hidden from a voter while the window is open, and be
+    # readable by the organizer. Asserting both proves the T3 visibility gate
+    # instead of working around it, and it is the only role permitted to see
+    # counts right now.
     c = Check("T3", "vote count updates")
-    status, body, _ = request(
-        f"{base}/events/{event_id}/votes",
+    hidden_status, hidden_body, _ = request(
+        f"{base}/rpc/voting/counts",
         method="POST",
-        body={"json": {"eventId": event_id}}
+        body={"json": {"eventId": event_id}},
+        header=participant_cookie,
     )
-    c.ok = status == 200
-    if c.ok:
-        try:
-            data = rpc_json(body)
-            for item in data:
-                if item.get("submissionId") == sub_id:
-                    if item.get("votes", 0) >= 1:
-                        break
-            else:
-                c.ok = False
-                c.note(f"vote not counted for {sub_id}")
-        except Exception:
-            c.ok = False
-            c.note("invalid response")
-    else:
-        c.note(f"GET counts -> {status}")
+    org_status, org_body, _ = request(
+        f"{base}/rpc/voting/counts",
+        method="POST",
+        body={"json": {"eventId": event_id}},
+        header=auth.get("organizer"),
+    )
+    hidden_ok = hidden_status == 403
+    c.ok = hidden_ok and org_status == 200
+    if not c.ok:
+        c.note(
+            f"counts as participant -> {hidden_status} (want 403 while results "
+            f"are hidden), as organizer -> {org_status}"
+        )
+    elif not any(
+        item.get("submissionId") == sub_id and item.get("votes", 0) >= 1
+        for item in rpc_json(org_body)
+    ):
+        c.ok = False
+        c.note(f"vote not counted for {sub_id}")
     checks.append(c)
 
-    # Check quadratic influence
+    # Quadratic influence: influence must be sqrt(votes), not the raw count.
     c = Check("T3", "quadratic influence computed")
-    if status == 200:
+    c.ok = False
+    if org_status == 200:
         try:
-            data = rpc_json(body)
-            for item in data:
+            for item in rpc_json(org_body):
                 if item.get("submissionId") == sub_id:
                     votes = item.get("votes", 0)
                     influence = item.get("influence", 0)
-                    expected = votes ** 0.5
+                    expected = votes**0.5
                     if abs(influence - expected) > 0.01:
-                        c.ok = False
-                        c.note(f"influence {influence} != sqrt({votes}) = {expected}")
+                        c.note(
+                            f"influence {influence} != sqrt({votes}) = {expected}"
+                        )
                     else:
                         c.ok = True
                     break
             else:
-                c.ok = False
                 c.note("submission not in counts")
         except Exception as e:
-            c.ok = False
             c.note(f"error parsing: {e}")
     else:
-        c.ok = False
+        c.note("organizer could not read counts")
     checks.append(c)
 
     # Unvote
