@@ -12,7 +12,11 @@
     },
     "check-types": {
       "dependsOn": ["^check-types"],
-      "outputs": ["dist/**"]
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
     },
     "dev": {
       "cache": false,
@@ -55,6 +59,8 @@
     "CORS_ORIGIN",
     "DATABASE_URL",
     "NODE_ENV",
+    "POSTGRES_PASSWORD",
+    "TEST_DATABASE_URL",
     "VERCEL",
     "VERCEL_ENV",
     "VERCEL_PROJECT_PRODUCTION_URL",
