@@ -1,6 +1,16 @@
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@rave/ui/components/avatar";
 import { Badge } from "@rave/ui/components/badge";
 import { Button } from "@rave/ui/components/button";
-import { Card } from "@rave/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@rave/ui/components/card";
 import {
   Empty,
   EmptyAction,
@@ -10,8 +20,9 @@ import {
   EmptyTitle,
 } from "@rave/ui/components/empty";
 import { Skeleton } from "@rave/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Textarea } from "@rave/ui/components/textarea";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import {
   AlertCircleIcon,
   CalendarIcon,
@@ -20,10 +31,15 @@ import {
   CodeIcon,
   ExternalLinkIcon,
   GlobeIcon,
+  MessageSquareIcon,
   TagIcon,
+  Trash2Icon,
   UsersIcon,
   VideoIcon,
 } from "lucide-react";
+import type * as React from "react";
+import { useCallback, useState } from "react";
+import { authClient } from "@/lib/auth-client";
 import { formatRelativeTime } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
 
@@ -51,6 +67,8 @@ export const Route = createFileRoute("/submissions/$id")({
 
 function SubmissionDetailComponent() {
   const { id } = useParams({ from: "/submissions/$id", strict: true });
+  const queryClient = useQueryClient();
+
   const {
     data: submission,
     status: submissionStatus,
@@ -58,6 +76,16 @@ function SubmissionDetailComponent() {
   } = useQuery(
     orpc.submissions.get.queryOptions({ input: { submissionId: id } })
   );
+
+  // Fetch comments for this submission
+  const { data: commentsData, isLoading: commentsLoading } = useQuery(
+    orpc.comments.list.queryOptions({
+      input: { submissionId: id, limit: 50, page: 1 },
+    })
+  );
+
+  // Get current user session
+  const { data: session } = authClient.useSession();
 
   if (submissionStatus === "pending") {
     return <SubmissionDetailSkeleton />;
@@ -89,6 +117,51 @@ function SubmissionDetailComponent() {
 
   const config = getStatusConfig(submission.status);
   const Icon = config.icon;
+
+  // Create comment mutation
+  const createCommentMutation = useMutation(
+    orpc.comments.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
+      },
+    })
+  );
+
+  // Delete comment mutation
+  const deleteCommentMutation = useMutation(
+    orpc.comments.delete.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["comments", "list", id] });
+      },
+    })
+  );
+
+  const [newComment, setNewComment] = useState("");
+
+  const handleSubmitComment = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newComment.trim()) {
+        return;
+      }
+      createCommentMutation.mutate({
+        content: newComment.trim(),
+        submissionId: id,
+      });
+      setNewComment("");
+    },
+    [createCommentMutation, id, newComment]
+  );
+
+  const handleDeleteComment = useCallback(
+    (commentId: string) => {
+      if (!confirm("Are you sure you want to delete this comment?")) {
+        return;
+      }
+      deleteCommentMutation.mutate({ commentId });
+    },
+    [deleteCommentMutation]
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
@@ -319,8 +392,243 @@ function SubmissionDetailComponent() {
             </div>
           </section>
         ) : null}
+
+        {/* Comments */}
+        <section>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display font-semibold text-foreground text-xl">
+              Comments
+            </h2>
+            <span className="text-muted-foreground text-sm">
+              {commentsData?.length ?? 0} comment
+              {commentsData?.length === 1 ? "" : "s"}
+            </span>
+          </div>
+
+          {/* Comment Form */}
+          {session?.user ? (
+            <Card className="mb-6">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Add a comment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmitComment}>
+                  <div className="flex gap-3">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage
+                        alt={session.user.name}
+                        src={session.user.image ?? ""}
+                      />
+                      <AvatarFallback>
+                        {session.user.name?.[0]?.toUpperCase() ?? "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <Textarea
+                        className="mb-2 min-h-[80px]"
+                        disabled={createCommentMutation.isPending}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Write a comment..."
+                        value={newComment}
+                      />
+                      <div className="flex justify-end">
+                        <Button
+                          disabled={
+                            createCommentMutation.isPending ||
+                            !newComment.trim()
+                          }
+                          type="submit"
+                        >
+                          {createCommentMutation.isPending ? (
+                            <>
+                              <svg
+                                className="mr-2 h-4 w-4 animate-spin"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  fill="none"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                />
+                                <path
+                                  className="opacity-75"
+                                  d="M12 2a10 10 0 0 1 10 10"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeWidth="4"
+                                />
+                              </svg>
+                              Posting...
+                            </>
+                          ) : (
+                            "Post Comment"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="mb-6 rounded-lg bg-muted/30 p-4 text-center text-muted-foreground text-sm">
+              <Link
+                className="font-medium text-primary hover:underline"
+                to="/login"
+              >
+                Sign in
+              </Link>{" "}
+              to add a comment
+            </div>
+          )}
+
+          {/* Comment List */}
+          <div className="space-y-4">
+            {commentsLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <CommentSkeleton key={i} />
+              ))
+            ) : commentsData && commentsData.length > 0 ? (
+              commentsData.map((comment) => (
+                <CommentItem
+                  comment={comment}
+                  currentUserId={session?.user?.id}
+                  isAuthor={comment.authorId === session?.user?.id}
+                  isDeleting={
+                    deleteCommentMutation.isPending &&
+                    deleteCommentMutation.variables?.commentId === comment.id
+                  }
+                  key={comment.id}
+                  onDelete={handleDeleteComment}
+                />
+              ))
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia>
+                    <MessageSquareIcon className="size-6" />
+                  </EmptyMedia>
+                  <EmptyTitle>No comments yet</EmptyTitle>
+                  <EmptyDescription>
+                    Be the first to share your thoughts on this project.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+        </section>
       </div>
     </div>
+  );
+}
+
+interface CommentItemProps {
+  comment: {
+    authorId: string;
+    content: string;
+    createdAt: Date | string;
+    id: string;
+    isDeleted: number;
+  };
+  currentUserId: string | undefined;
+  isAuthor: boolean;
+  isDeleting: boolean;
+  onDelete: (commentId: string) => void;
+}
+
+function CommentItem({
+  comment,
+  currentUserId,
+  isAuthor,
+  isDeleting,
+  onDelete,
+}: CommentItemProps) {
+  const isDeleted = comment.isDeleted === 1;
+  const createdAt = new Date(comment.createdAt);
+
+  return (
+    <Card className={isDeleted ? "opacity-60" : ""} variant="borderless">
+      <CardContent className="pt-4 pb-2">
+        <div className="flex gap-3">
+          <Avatar className="h-8 w-8 shrink-0">
+            <AvatarFallback>U</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">
+                {isDeleted ? "[deleted]" : "User"}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                {formatRelativeTime(createdAt)}
+              </span>
+            </div>
+            <p className="{isDeleted ? 'text-muted-foreground italic' : 'text-foreground'} mt-1 text-sm">
+              {isDeleted ? "[This comment has been deleted]" : comment.content}
+            </p>
+            {isAuthor && !isDeleted && (
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  className="text-error hover:bg-error/10 hover:text-error"
+                  disabled={isDeleting}
+                  onClick={() => onDelete(comment.id)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  {isDeleting ? (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        fill="none"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        d="M12 2a10 10 0 0 1 10 10"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="4"
+                      />
+                    </svg>
+                  ) : (
+                    <>
+                      <Trash2Icon className="mr-1.5 h-3.5 w-3.5" />
+                      Delete
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CommentSkeleton() {
+  return (
+    <Card variant="borderless">
+      <CardContent className="pt-4 pb-2">
+        <div className="flex gap-3">
+          <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -367,5 +675,3 @@ function SubmissionDetailSkeleton() {
     </div>
   );
 }
-
-import { useParams } from "@tanstack/react-router";

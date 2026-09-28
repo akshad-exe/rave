@@ -23,6 +23,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   CalendarIcon,
   CodeIcon,
+  HeartIcon,
   SearchIcon,
   TagIcon,
   TrophyIcon,
@@ -40,6 +41,10 @@ type GalleryItem = Awaited<
   ReturnType<typeof client.submissions.gallery>
 >["submissions"][number];
 
+type PublicEvent = Awaited<
+  ReturnType<typeof client.events.list>
+>["events"][number];
+
 export const Route = createFileRoute("/gallery/")({
   component: GalleryComponent,
 });
@@ -51,19 +56,34 @@ function GalleryComponent() {
   const [page, setPage] = useState(1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const { data, status, isError } = useQuery(
-    orpc.submissions.gallery.queryOptions({
+  // Fetch the public event first
+  const { data: eventsData, isError: eventsError } = useQuery(
+    orpc.events.list.queryOptions({
+      input: { limit: 1, page: 1 },
+    })
+  );
+
+  const publicEvent = eventsData?.events?.[0];
+  const eventId = publicEvent?.id ?? "";
+
+  const {
+    data: galleryData,
+    status: galleryStatus,
+    isError: galleryError,
+    isPending,
+  } = useQuery({
+    ...orpc.submissions.gallery.queryOptions({
       input: {
-        // TODO: resolve the public event instead of querying with a blank id
-        eventId: "",
+        eventId,
         search: debouncedSearch || undefined,
         trackId: trackFilter || undefined,
         sortBy,
         page,
         limit: PAGE_SIZE,
       },
-    })
-  );
+    }),
+    enabled: !!eventId,
+  });
 
   // The previous version returned a cleanup function from the change handler,
   // where React discards it, so no timeout was ever cleared. Debounce properly.
@@ -103,11 +123,11 @@ function GalleryComponent() {
     setSortBy(value === "name" ? "name" : "recent");
   }, []);
 
-  const submissions = data?.submissions ?? [];
+  const submissions = galleryData?.submissions ?? [];
   const hasMore = submissions.length === PAGE_SIZE;
   const hasFilters = Boolean(search || trackFilter);
 
-  if (isError) {
+  if (eventsError || galleryError) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <p className="text-error">Failed to load gallery. Please try again.</p>
@@ -118,10 +138,29 @@ function GalleryComponent() {
     );
   }
 
+  if (!publicEvent) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:px-6 lg:px-8">
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia>
+              <TrophyIcon className="size-6" />
+            </EmptyMedia>
+            <EmptyTitle>No public hackathon</EmptyTitle>
+            <EmptyDescription>
+              There are no public hackathons available at the moment.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    );
+  }
+
   const body = renderGalleryBody({
+    eventId,
     hasFilters,
     hasMore,
-    isPending: status === "pending" && !data,
+    isPending,
     onClearFilters: handleClearFilters,
     onLoadMore: handleLoadMore,
     submissions,
@@ -134,7 +173,7 @@ function GalleryComponent() {
           Project Gallery
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Explore projects submitted to hackathons
+          Explore projects submitted to {publicEvent.name}
         </p>
       </div>
 
@@ -174,7 +213,7 @@ function GalleryComponent() {
       {/* Results Count */}
       <div className="mb-6 flex items-center justify-between">
         <p className="text-muted-foreground text-sm">
-          {data
+          {galleryData
             ? `Showing ${submissions.length} project${submissions.length === 1 ? "" : "s"}`
             : "Loading..."}
         </p>
@@ -187,6 +226,7 @@ function GalleryComponent() {
 }
 
 function renderGalleryBody({
+  eventId,
   submissions,
   hasMore,
   hasFilters,
@@ -194,6 +234,7 @@ function renderGalleryBody({
   onClearFilters,
   onLoadMore,
 }: {
+  eventId: string;
   hasFilters: boolean;
   hasMore: boolean;
   isPending: boolean;
@@ -240,7 +281,7 @@ function renderGalleryBody({
     <>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {submissions.map((project) => (
-          <ProjectCard key={project.id} project={project} />
+          <ProjectCard eventId={eventId} key={project.id} project={project} />
         ))}
       </div>
       {hasMore ? (
@@ -259,75 +300,97 @@ function renderGalleryBody({
   );
 }
 
-function ProjectCard({ project }: { project: GalleryItem }) {
+function ProjectCard({
+  project,
+  eventId,
+}: {
+  project: GalleryItem;
+  eventId: string;
+}) {
   return (
-    <Link className="block" params={{ id: project.id }} to="/submissions/$id">
-      <Card className="flex h-full flex-col" variant="interactive">
-        <div className="relative aspect-video w-full overflow-hidden rounded-t-lg bg-muted">
-          {project.thumbnailUrl ? (
-            <img
-              alt=""
-              className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-              height={360}
-              src={project.thumbnailUrl}
-              width={640}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground/50">
-              <CodeIcon className="size-12" />
-            </div>
-          )}
-          {project.submittedAt ? (
-            <div className="absolute bottom-2 left-2">
-              <Badge className="text-xs" variant="subtle">
-                Submitted {formatRelativeTime(project.submittedAt)}
-              </Badge>
-            </div>
-          ) : null}
-        </div>
-
-        <CardContent className="flex flex-1 flex-col p-4">
-          <h3 className="line-clamp-1 font-semibold text-foreground">
-            {project.name}
-          </h3>
-          {project.tagline ? (
-            <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
-              {project.tagline}
-            </p>
-          ) : null}
-
-          <div className="mt-auto flex flex-wrap gap-2 pt-3 text-muted-foreground text-xs">
-            {project.trackId ? (
-              <span className="flex items-center gap-1 rounded bg-muted px-2 py-0.5">
-                <TagIcon className="size-3" />
-                {project.trackId}
-              </span>
+    <div className="flex flex-col">
+      <Link className="block" params={{ id: project.id }} to="/submissions/$id">
+        <Card className="flex h-full flex-col" variant="interactive">
+          <div className="relative aspect-video w-full overflow-hidden rounded-t-lg bg-muted">
+            {project.thumbnailUrl ? (
+              <img
+                alt=""
+                className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+                height={360}
+                src={project.thumbnailUrl}
+                width={640}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-muted-foreground/50">
+                <CodeIcon className="size-12" />
+              </div>
+            )}
+            {project.submittedAt ? (
+              <div className="absolute bottom-2 left-2">
+                <Badge className="text-xs" variant="subtle">
+                  Submitted {formatRelativeTime(project.submittedAt)}
+                </Badge>
+              </div>
             ) : null}
-            <span className="flex items-center gap-1">
-              <CalendarIcon className="size-3" />
-              {project.submittedAt
-                ? formatDate(project.submittedAt)
-                : "Pending"}
-            </span>
           </div>
 
-          <div className="mt-3 flex items-center justify-between">
-            <div className="flex gap-1.5">
-              {project.repositoryUrl ? (
-                <a
-                  className="text-muted-foreground transition-colors hover:text-primary"
-                  href={project.repositoryUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  <CodeIcon className="size-4" />
-                </a>
+          <CardContent className="flex flex-1 flex-col p-4">
+            <h3 className="line-clamp-1 font-semibold text-foreground">
+              {project.name}
+            </h3>
+            {project.tagline ? (
+              <p className="mt-1 line-clamp-2 text-muted-foreground text-sm">
+                {project.tagline}
+              </p>
+            ) : null}
+
+            <div className="mt-auto flex flex-wrap gap-2 pt-3 text-muted-foreground text-xs">
+              {project.trackId ? (
+                <span className="flex items-center gap-1 rounded bg-muted px-2 py-0.5">
+                  <TagIcon className="size-3" />
+                  {project.trackId}
+                </span>
               ) : null}
+              <span className="flex items-center gap-1">
+                <CalendarIcon className="size-3" />
+                {project.submittedAt
+                  ? formatDate(project.submittedAt)
+                  : "Pending"}
+              </span>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
+
+            <div className="mt-3 flex items-center justify-between">
+              <div className="flex gap-1.5">
+                {project.repositoryUrl ? (
+                  <a
+                    className="text-muted-foreground transition-colors hover:text-primary"
+                    href={project.repositoryUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <CodeIcon className="size-4" />
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+
+      {/* Vote affordance */}
+      {eventId && (
+        <div className="mt-3 border-border border-t pt-3">
+          <Link
+            className="inline-flex items-center gap-1.5 font-medium text-primary text-sm hover:text-primary/80"
+            params={{ eventId }}
+            to="/vote/$eventId"
+          >
+            <HeartIcon className="size-4" />
+            Vote on this project
+          </Link>
+        </div>
+      )}
+    </div>
   );
 }
 
