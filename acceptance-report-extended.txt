@@ -1,0 +1,22 @@
+DOGFOOD 2026 extended acceptance report
+portal: http://localhost:3000
+
+T3  voting route accessible ............... PASS
+T3  can fetch public event ................ PASS
+T3  voting ballot loads ................... FAIL
+       ballot page missing expected content
+T3  can fetch submissions for ballot ...... PASS
+T3  can vote on submission ................ PASS
+T3  vote count updates .................... PASS
+T3  quadratic influence computed .......... PASS
+T3  can unvote ............................ PASS
+T3  can list comments ..................... PASS
+T3  can create comment .................... PASS
+T3  comment appears in list ............... PASS
+T3  can delete own comment (soft) ......... PASS
+T3  ballot ordering randomised per voter .. PASS
+T3  gated voting mode exists in schema .... PASS
+       verified via database schema (votingMode enum includes 'gated')
+
+verified nothing
+note: claimed but not verified: T3
