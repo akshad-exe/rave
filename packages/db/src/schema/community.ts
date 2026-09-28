@@ -6,6 +6,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { user } from "./auth";
 import { event } from "./events";
 import { submission } from "./submissions";
 
@@ -53,5 +54,53 @@ export const comment = pgTable(
     index("comment_submission_idx").on(t.submissionId),
     index("comment_author_idx").on(t.authorId),
     index("comment_event_idx").on(t.eventId),
+  ]
+);
+
+// Email verification tokens for gated voting
+export const votingVerification = pgTable(
+  "voting_verification",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    email: text("email").notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => event.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at").notNull(),
+    id: text("id").primaryKey(),
+    submissionId: text("submission_id")
+      .notNull()
+      .references(() => submission.id, { onDelete: "cascade" }),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: integer("verified").notNull().default(0),
+  },
+  (t) => [
+    index("voting_verification_user_event_idx").on(t.userId, t.eventId),
+    index("voting_verification_email_idx").on(t.email),
+    index("voting_verification_expires_idx").on(t.expiresAt),
+  ]
+);
+
+// Per-voter ballot ordering seeds for randomised but stable ballot order
+export const ballotSeed = pgTable(
+  "ballot_seed",
+  {
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => event.id, { onDelete: "cascade" }),
+    id: text("id").primaryKey(),
+    seed: integer("seed").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    unique("ballot_seed_user_event_unique").on(t.userId, t.eventId),
+    index("ballot_seed_event_idx").on(t.eventId),
+    index("ballot_seed_user_idx").on(t.userId),
   ]
 );

@@ -22,6 +22,7 @@ export const votingModeEnum = pgEnum("voting_mode", [
   "disabled",
   "open",
   "authenticated",
+  "gated",
 ]);
 
 export const event = pgTable(
