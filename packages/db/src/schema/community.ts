@@ -61,6 +61,10 @@ export const comment = pgTable(
 export const votingVerification = pgTable(
   "voting_verification",
   {
+    // One-time code delivered to the voter's email. Held server-side so a
+    // verification cannot be completed just by replaying the verificationId
+    // the 401 already handed back.
+    code: text("code"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     email: text("email").notNull(),
     eventId: text("event_id")

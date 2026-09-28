@@ -1,7 +1,7 @@
 import type { ServiceContext } from "@rave/api/context";
 import { badRequest, notFound, unauthorized } from "@rave/api/errors";
-import { event, votingVerification } from "@rave/db";
-import { and, eq, gt } from "drizzle-orm";
+import { event } from "@rave/db";
+import { eq } from "drizzle-orm";
 
 export async function assertVotingOpen(
   ctx: ServiceContext,
@@ -35,27 +35,12 @@ export async function assertVotingOpen(
     throw unauthorized("Must be authenticated to vote");
   }
 
-  if (ev.votingMode === "gated") {
-    if (!userId) {
-      throw unauthorized("Must be authenticated to vote");
-    }
-    // Check if user has a valid voting verification token for this event
-    const verificationRows = await ctx.db
-      .select({ id: votingVerification.id })
-      .from(votingVerification)
-      .where(
-        and(
-          eq(votingVerification.userId, userId),
-          eq(votingVerification.eventId, eventId),
-          eq(votingVerification.verified, 1),
-          gt(votingVerification.expiresAt, new Date())
-        )
-      )
-      .limit(1);
-
-    if (!verificationRows.length) {
-      throw unauthorized("Email verification required to vote in this event");
-    }
+  if (ev.votingMode === "gated" && !userId) {
+    // Only the identity check belongs here. Whether this voter holds a verified
+    // token is decided where the vote is recorded, because that is the only
+    // place that can mint the challenge the client needs to respond to. Doing
+    // it here too shadowed that path behind a bare 401 the UI could not act on.
+    throw unauthorized("Must be authenticated to vote");
   }
 
   return ev;

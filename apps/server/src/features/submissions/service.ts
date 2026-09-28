@@ -1,4 +1,5 @@
 import { writeAudit } from "@rave/api/audit";
+import type { ServiceContext } from "@rave/api/context";
 import type { SubmissionsService } from "@rave/api/contract";
 import { badRequest, forbidden, notFound } from "@rave/api/errors";
 import { generateId } from "@rave/api/id";
@@ -13,6 +14,47 @@ import {
 import { assertSubmissionOpen, assertSubmissionOwner } from "./helpers";
 
 // Deterministic shuffle using Fisher-Yates algorithm with a seeded random number generator
+// One stable order per voter per event, so a ballot does not reshuffle between
+// page loads. Extracted from the gallery query to keep that function readable.
+async function resolveBallotSeed(
+  ctx: ServiceContext,
+  eventId: string
+): Promise<number> {
+  const userId = ctx.session?.user?.id;
+  if (!userId) {
+    // Anonymous viewers get a stable per-event order. A per-request random seed
+    // would reshuffle on every refresh, and a per-visitor one would need a
+    // cookie this app does not set. Authenticated voters are the only ones who
+    // can actually cast a vote, and they take the per-user path below.
+    const key = `anonymous:${eventId}`;
+    let hash = 0;
+    for (const character of key) {
+      hash = (hash * 31 + character.charCodeAt(0)) % 2_147_483_647;
+    }
+    return hash;
+  }
+
+  const existing = await ctx.db
+    .select({ seed: ballotSeed.seed })
+    .from(ballotSeed)
+    .where(and(eq(ballotSeed.userId, userId), eq(ballotSeed.eventId, eventId)))
+    .limit(1);
+
+  const [found] = existing;
+  if (found) {
+    return found.seed;
+  }
+
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+  await ctx.db.insert(ballotSeed).values({
+    eventId,
+    id: generateId("bld"),
+    seed,
+    userId,
+  });
+  return seed;
+}
+
 function deterministicShuffle<T>(array: T[], seed: number): T[] {
   const result = [...array];
   let randomSeed = seed;
@@ -224,41 +266,7 @@ export const submissionsService: SubmissionsService = {
     if (input.sortBy === "name") {
       sortedRows = allRows.sort((a, b) => a.name.localeCompare(b.name));
     } else if (input.sortBy === "random") {
-      // Get or create ballot seed for this user/event
-      const userId = ctx.session?.user?.id;
-      let seed = 0;
-      if (userId) {
-        const seedRows = await ctx.db
-          .select({ seed: ballotSeed.seed })
-          .from(ballotSeed)
-          .where(
-            and(
-              eq(ballotSeed.userId, userId),
-              eq(ballotSeed.eventId, input.eventId)
-            )
-          )
-          .limit(1);
-
-        if (seedRows.length > 0) {
-          const [seedRow] = seedRows;
-          if (seedRow) {
-            ({ seed } = seedRow);
-          }
-        } else {
-          // Generate new seed
-          seed = Math.floor(Math.random() * 2_147_483_647);
-          await ctx.db.insert(ballotSeed).values({
-            eventId: input.eventId,
-            id: generateId("bld"),
-            seed,
-            userId,
-          });
-        }
-      } else {
-        // For anonymous users, use a session-based seed or event-based seed
-        seed = Math.floor(Math.random() * 2_147_483_647);
-      }
-
+      const seed = await resolveBallotSeed(ctx, input.eventId);
       // Deterministic shuffle using Fisher-Yates with seeded random
       sortedRows = deterministicShuffle(allRows, seed);
     } else {

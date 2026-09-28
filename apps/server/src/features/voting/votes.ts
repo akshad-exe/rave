@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { writeAudit } from "@rave/api/audit";
 import type { VotingService } from "@rave/api/contract";
 import {
@@ -8,7 +9,7 @@ import {
   notFound,
   unauthorized,
 } from "@rave/api/errors";
-import { generateId } from "@rave/api/id";
+import { generateId, generateToken } from "@rave/api/id";
 import { event, submission, user, vote, votingVerification } from "@rave/db";
 import { and, count, eq, gt } from "drizzle-orm";
 
@@ -118,9 +119,19 @@ export const votingService: VotingService = {
       throw badRequest("Verification token already used");
     }
 
+    // Constant-time compare so a wrong code cannot be narrowed down by timing.
+    const expected = verification.code ?? "";
+    const supplied = input.code;
+    const matches =
+      expected.length === supplied.length &&
+      timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
+    if (!matches) {
+      throw unauthorized("Invalid or expired verification code");
+    }
+
     await ctx.db
       .update(votingVerification)
-      .set({ updatedAt: new Date(), verified: 1 })
+      .set({ code: null, updatedAt: new Date(), verified: 1 })
       .where(eq(votingVerification.id, input.verificationId));
 
     await writeAudit(ctx, {
@@ -186,6 +197,7 @@ export const votingService: VotingService = {
       if (!verificationRows.length) {
         // Create a new verification token
         const verificationId = generateId("vvf");
+        const verificationCode = generateToken();
         const expiresAt = new Date();
         expiresAt.setHours(
           expiresAt.getHours() + VERIFICATION_TOKEN_EXPIRY_HOURS
@@ -203,6 +215,7 @@ export const votingService: VotingService = {
         }
 
         await ctx.db.insert(votingVerification).values({
+          code: verificationCode,
           email: userRecord.email,
           eventId: input.eventId,
           expiresAt,
@@ -216,6 +229,14 @@ export const votingService: VotingService = {
           code: "VERIFICATION_REQUIRED",
           expiresAt,
           message: "Email verification required",
+          // In production the secret belongs in an email to userRecord.email,
+          // which this codebase has no mailer for yet. Echoed here outside
+          // production so the flow is exercisable; the verificationId alone
+          // cannot complete it either way.
+          verificationCode:
+            process.env.NODE_ENV === "production"
+              ? undefined
+              : verificationCode,
           verificationId,
         });
       }

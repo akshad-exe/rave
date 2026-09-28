@@ -42,7 +42,12 @@ export const createEventInput = z.object({
   submissionDeadline: z.iso.datetime().optional(),
   submissionStartAt: z.iso.datetime().optional(),
   tagline: z.string().max(200).optional(),
-  votingMode: z.enum(["disabled", "open", "authenticated"]).default("disabled"),
+  // "gated" must stay in step with votingModeEnum in packages/db, which already
+  // stores it. Without it here the API rejects any event configured for gated
+  // voting, even though the service layer handles the mode.
+  votingMode: z
+    .enum(["disabled", "open", "authenticated", "gated"])
+    .default("disabled"),
   websiteUrl: z.url().optional(),
 });
 

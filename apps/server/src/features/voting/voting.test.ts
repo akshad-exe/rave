@@ -12,9 +12,60 @@ import {
 describe("Community Voting", () => {
   const app = getTestApp();
 
+  /** oRPC nests the error payload under `json`; dig out the challenge fields. */
+  function challengeOf(body: unknown): {
+    code?: string;
+    verificationCode?: string;
+    verificationId?: string;
+  } {
+    const root = body as {
+      data?: Record<string, unknown>;
+      json?: { data?: Record<string, unknown> };
+    };
+    return (root.json?.data ?? root.data ?? {}) as {
+      code?: string;
+      verificationCode?: string;
+      verificationId?: string;
+    };
+  }
+
   afterAll(async () => {
     await closeTestApp();
   });
+
+  async function setupGatedVotingEvent() {
+    const org = await registerUser(app);
+    await setRole(org.id, "organizer");
+
+    const ev = await createEvent(app, org.cookie, {
+      isPublic: true,
+      maxVotesPerUser: 3,
+      votingMode: "gated",
+    });
+    await rpcOk(
+      app,
+      "events.transition",
+      { eventId: ev.id, status: "registration" },
+      org.cookie
+    );
+    await rpcOk(
+      app,
+      "events.transition",
+      { eventId: ev.id, status: "submission" },
+      org.cookie
+    );
+
+    const p = await registerUser(app);
+    const sub = (await rpcOk(
+      app,
+      "submissions.create",
+      { eventId: ev.id, name: "Gated Project" },
+      p.cookie
+    )) as { id: string };
+    await rpcOk(app, "submissions.submit", { submissionId: sub.id }, p.cookie);
+
+    return { ev, org, p, sub };
+  }
 
   async function setupVotingEvent() {
     const org = await registerUser(app);
@@ -239,5 +290,171 @@ describe("Community Voting", () => {
       submissionId: sub.id,
     });
     expect(status).toBe(401);
+  });
+  describe("gated voting", () => {
+    it("challenges a vote instead of recording it, and the code completes it", async () => {
+      const { ev, sub } = await setupGatedVotingEvent();
+      const voter = await registerUser(app);
+
+      const attempt = await rpc(
+        app,
+        "voting.vote",
+        {
+          eventId: ev.id,
+          submissionId: sub.id,
+        },
+        voter.cookie
+      );
+      expect(attempt.status, JSON.stringify(attempt.body)).toBe(401);
+      const { code, verificationCode, verificationId } = challengeOf(
+        attempt.body
+      );
+      expect(code, JSON.stringify(attempt.body)).toBe("VERIFICATION_REQUIRED");
+      if (!(verificationId && verificationCode)) {
+        throw new Error(
+          `challenge missing fields: ${JSON.stringify(attempt.body)}`
+        );
+      }
+
+      // A wrong code must not verify.
+      const wrong = await rpc(
+        app,
+        "voting.verifyVoting",
+        {
+          code: "not-the-code",
+          verificationId,
+        },
+        voter.cookie
+      );
+      expect(wrong.status).toBe(401);
+
+      // A missing code is rejected by the contract before the service runs.
+      const noCode = await rpc(
+        app,
+        "voting.verifyVoting",
+        {
+          code: "",
+          verificationId,
+        },
+        voter.cookie
+      );
+      expect(noCode.status).toBe(400);
+
+      // NODE_ENV is "test" here, so the code is echoed back rather than emailed.
+      const verified = await rpcOk(
+        app,
+        "voting.verifyVoting",
+        {
+          code: verificationCode,
+          verificationId,
+        },
+        voter.cookie
+      );
+      expect(verified).toMatchObject({ ok: true });
+
+      const counted = await rpcOk(
+        app,
+        "voting.vote",
+        { eventId: ev.id, submissionId: sub.id },
+        voter.cookie
+      );
+      expect(counted).toMatchObject({ ok: true });
+    });
+
+    it("refuses a replayed verification", async () => {
+      const { ev, sub } = await setupGatedVotingEvent();
+      const voter = await registerUser(app);
+
+      const attempt = await rpc(
+        app,
+        "voting.vote",
+        {
+          eventId: ev.id,
+          submissionId: sub.id,
+        },
+        voter.cookie
+      );
+      const { verificationCode, verificationId } = challengeOf(attempt.body);
+      if (!(verificationId && verificationCode)) {
+        throw new Error(
+          `challenge missing fields: ${JSON.stringify(attempt.body)}`
+        );
+      }
+
+      await rpcOk(
+        app,
+        "voting.verifyVoting",
+        {
+          code: verificationCode,
+          verificationId,
+        },
+        voter.cookie
+      );
+
+      const replay = await rpc(
+        app,
+        "voting.verifyVoting",
+        {
+          code: verificationCode,
+          verificationId,
+        },
+        voter.cookie
+      );
+      expect(replay.status).toBeGreaterThanOrEqual(400);
+    });
+  });
+
+  describe("randomised ballot ordering", () => {
+    it("is stable for the same voter but differs between voters", async () => {
+      const { ev, p } = await setupVotingEvent();
+      const other = await registerUser(app);
+
+      // One submission per user per event, so each project needs its own author.
+      const projectNames = ["Alpha", "Bravo", "Charlie", "Delta"];
+      // Each submission needs its own author, so these are created in sequence
+      // rather than in parallel: they share the event's one-per-user slot.
+      for (const name of projectNames) {
+        // biome-ignore lint/performance/noAwaitInLoops: each author needs its own event slot, so these cannot run in parallel
+        const author = await registerUser(app);
+        const created = (await rpcOk(
+          app,
+          "submissions.create",
+          { eventId: ev.id, name },
+          author.cookie
+        )) as { id: string };
+        await rpcOk(
+          app,
+          "submissions.submit",
+          { submissionId: created.id },
+          author.cookie
+        );
+      }
+
+      const first = (await rpcOk(
+        app,
+        "submissions.gallery",
+        { eventId: ev.id, limit: 50, sortBy: "random" },
+        p.cookie
+      )) as { submissions: Array<{ id: string }> };
+      const repeat = (await rpcOk(
+        app,
+        "submissions.gallery",
+        { eventId: ev.id, limit: 50, sortBy: "random" },
+        p.cookie
+      )) as { submissions: Array<{ id: string }> };
+      const different = (await rpcOk(
+        app,
+        "submissions.gallery",
+        { eventId: ev.id, limit: 50, sortBy: "random" },
+        other.cookie
+      )) as { submissions: Array<{ id: string }> };
+
+      expect(first.submissions.map((s) => s.id)).toEqual(
+        repeat.submissions.map((s) => s.id)
+      );
+      expect(first.submissions.map((s) => s.id)).not.toEqual(
+        different.submissions.map((s) => s.id)
+      );
+    });
   });
 });

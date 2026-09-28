@@ -7,12 +7,22 @@ import {
   CardTitle,
 } from "@rave/ui/components/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@rave/ui/components/dialog";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@rave/ui/components/empty";
+import { Input } from "@rave/ui/components/input";
+import { Label } from "@rave/ui/components/label";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
@@ -24,7 +34,14 @@ import {
   MessageSquareIcon,
   UsersIcon,
 } from "lucide-react";
-import { type ChangeEvent, useCallback, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { toast } from "sonner";
 
 import { formatRelativeTime } from "@/lib/utils";
 import { type client, orpc } from "@/utils/orpc";
@@ -46,7 +63,12 @@ type BallotItem = Awaited<
   influence: number;
 };
 
-type SortBy = "influence" | "votes" | "name";
+type SortBy = "random" | "influence" | "votes" | "name";
+
+interface Challenge {
+  pendingSubmissionId: string;
+  verificationId: string;
+}
 
 export const Route = createFileRoute("/vote/$eventId")({
   component: VoteComponent,
@@ -54,7 +76,8 @@ export const Route = createFileRoute("/vote/$eventId")({
 
 function VoteComponent() {
   const { eventId } = useParams({ from: "/vote/$eventId", strict: true });
-  const [sortBy, setSortBy] = useState<SortBy>("influence");
+  // Randomised by default: a fixed order biases whoever votes first.
+  const [sortBy, setSortBy] = useState<SortBy>("random");
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
 
@@ -67,7 +90,9 @@ function VoteComponent() {
     orpc.submissions.gallery.queryOptions({
       input: {
         eventId,
-        sortBy: sortBy === "name" ? "name" : "recent",
+        // "random" reaches the server, which shuffles the full result set with
+        // a per-voter seed before paginating.
+        sortBy: sortBy === "random" || sortBy === "name" ? sortBy : "recent",
         page,
         limit: PAGE_SIZE,
       },
@@ -128,8 +153,11 @@ function VoteComponent() {
       };
     });
 
-    // Sort based on sortBy
+    // Sort based on sortBy. "random" keeps the server's seeded order, so the
+    // ballot is neither re-sorted nor reshuffled on the client.
     switch (sortBy) {
+      case "random":
+        return items;
       case "influence":
         return items.sort((a, b) => b.influence - a.influence);
       case "votes":
@@ -155,8 +183,22 @@ function VoteComponent() {
           queryKey: ["voting", "myVotes", eventId],
         });
       },
-      onError: (error) => {
-        console.error("Vote failed:", error);
+      onError: (error, variables) => {
+        // oRPC's onError hands back a plain Error, so the challenge payload has
+        // to be read off the ORPCError it actually is.
+        const data = (error as { data?: unknown }).data as
+          | { code?: string; verificationId?: string }
+          | undefined;
+        if (data?.code === "VERIFICATION_REQUIRED" && data.verificationId) {
+          setChallenge({
+            pendingSubmissionId: variables.submissionId,
+            verificationId: data.verificationId,
+          });
+          return;
+        }
+        toast.error(
+          error instanceof Error ? error.message : "Could not record vote"
+        );
       },
     })
   );
@@ -176,6 +218,66 @@ function VoteComponent() {
         console.error("Unvote failed:", error);
       },
     })
+  );
+
+  // Gated events answer a vote with a challenge instead of recording it. The
+  // payload arrives on error.data; see unauthorized() in packages/api/errors.
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [challengeCode, setChallengeCode] = useState("");
+  // Mirrored as a plain string so the verify mutation can read the interrupted
+  // vote without depending on the challenge it is closing. Empty until a verify
+  // is actually attempted, which handleVerify guards.
+  const pendingSubmissionRef = useRef("");
+
+  const verifyMutation = useMutation(
+    orpc.voting.verifyVoting.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["voting", "counts"] });
+        queryClient.invalidateQueries({ queryKey: ["voting", "myVotes"] });
+        // Retry the vote the challenge interrupted. verifyVoting takes no
+        // submission id, so the pending one is read back off the ref.
+        voteMutation.mutate({
+          eventId,
+          submissionId: pendingSubmissionRef.current,
+        });
+        pendingSubmissionRef.current = "";
+        setChallenge(null);
+        setChallengeCode("");
+      },
+    })
+  );
+
+  const dismissChallenge = useCallback(() => {
+    pendingSubmissionRef.current = "";
+    setChallenge(null);
+    setChallengeCode("");
+  }, []);
+
+  const handleChallengeOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        dismissChallenge();
+      }
+    },
+    [dismissChallenge]
+  );
+
+  const handleVerify = useCallback(() => {
+    if (!challenge) {
+      return;
+    }
+    pendingSubmissionRef.current = challenge.pendingSubmissionId;
+    verifyMutation.mutate({
+      code: challengeCode.trim(),
+      verificationId: challenge.verificationId,
+    });
+  }, [challenge, challengeCode, verifyMutation]);
+
+  const handleChallengeCodeChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      setChallengeCode(e.target.value);
+    },
+    []
   );
 
   const handleVote = useCallback(
@@ -292,6 +394,7 @@ function VoteComponent() {
           onChange={handleSortChange}
           value={sortBy}
         >
+          <option value="random">Random (default)</option>
           <option value="influence">Influence (√votes)</option>
           <option value="votes">Raw Votes</option>
           <option value="name">Name A-Z</option>
@@ -320,6 +423,43 @@ function VoteComponent() {
           </li>
         </ul>
       </div>
+
+      <Dialog
+        onOpenChange={handleChallengeOpenChange}
+        open={challenge !== null}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Verify your email to vote</DialogTitle>
+            <DialogDescription>
+              This event gates voting behind email verification. Enter the code
+              we sent to your address to record your vote.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="verification-code">Verification code</Label>
+            <Input
+              autoComplete="one-time-code"
+              id="verification-code"
+              onChange={handleChallengeCodeChange}
+              placeholder="Paste the code from your email"
+              value={challengeCode}
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={dismissChallenge} type="button" variant="outline">
+              Cancel
+            </Button>
+            <Button
+              disabled={challengeCode.trim().length === 0}
+              onClick={handleVerify}
+              type="button"
+            >
+              {verifyMutation.isPending ? "Verifying..." : "Verify and vote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

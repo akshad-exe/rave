@@ -51,14 +51,12 @@ def load_config(path):
         return parse_toml(f.read())
 
 
-def request(url, header=None, method="GET", body=None, cookie=None):
+def request(url, header=None, method="GET", body=None):
     """Return (status, text, headers). Never raises on HTTP error status."""
     req = urllib.request.Request(url, method=method)
     if header:
         name, _, value = header.partition(":")
         req.add_header(name.strip(), value.strip())
-    if cookie:
-        req.add_header("Cookie", cookie)
     if body is not None:
         req.data = json.dumps(body).encode()
         req.add_header("Content-Type", "application/json")
@@ -69,6 +67,21 @@ def request(url, header=None, method="GET", body=None, cookie=None):
         return e.code, e.read().decode("utf-8", "replace"), dict(e.headers)
     except Exception as e:
         return 0, f"{type(e).__name__}: {e}", {}
+
+
+def rpc_json(body):
+    """oRPC wraps RPC responses as {"json": {...}}; return the inner payload.
+
+    Plain (non-RPC) routes are returned as-is.
+    """
+    try:
+        parsed = json.loads(body)
+    except Exception:
+        return {}
+    if isinstance(parsed, dict) and "json" in parsed:
+        inner = parsed["json"]
+        return inner if isinstance(inner, dict) else {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 class Check:
@@ -108,19 +121,19 @@ def build_extended_checks(cfg, fixture):
     
     # Get public event ID via events.list API
     c = Check("T3", "can fetch public event")
-    status, body, _ = request(f"{base}/rpc/events.list", method="POST", body={"input": {"limit": 1, "page": 1}})
+    status, body, _ = request(f"{base}/rpc/events/list", method="POST", body={"json": {"limit": 1, "page": 1}})
     c.ok = status == 200
     event_data = None
     if c.ok:
         try:
-            event_data = json.loads(body)
+            event_data = rpc_json(body)
             events = event_data.get("events", [])
             if events:
                 event_id = events[0].get("id")
         except Exception:
             pass
     if not c.ok or not event_id:
-        c.note(f"POST {base}/rpc/events.list -> {status}")
+        c.note(f"POST {base}/rpc/events/list -> {status}")
         if status == 200:
             c.note("no events returned")
     checks.append(c)
@@ -143,10 +156,12 @@ def build_extended_checks(cfg, fixture):
 
     # Test voting ballot route
     c = Check("T3", "voting ballot loads")
-    status, body, _ = request(f"{base}/vote/{event_id}")
+    # The ballot is an SPA route, served by the web container, not the API.
+    web_base = base.replace(":3000", ":3001")
+    status, body, _ = request(f"{web_base}/vote/{event_id}")
     c.ok = status == 200
     if not c.ok:
-        c.note(f"GET {base}/vote/{event_id} -> {status}")
+        c.note(f"GET {web_base}/vote/{event_id} -> {status}")
     else:
         if "Community Ballot" not in body:
             c.ok = False
@@ -156,15 +171,15 @@ def build_extended_checks(cfg, fixture):
     # Get submissions for voting
     c = Check("T3", "can fetch submissions for ballot")
     status, body, _ = request(
-        f"{base}/rpc/submissions.gallery",
+        f"{base}/rpc/submissions/gallery",
         method="POST",
-        body={"input": {"eventId": event_id, "limit": 5, "page": 1}}
+        body={"json": {"eventId": event_id, "limit": 5, "page": 1}}
     )
     c.ok = status == 200
     submissions = []
     if c.ok:
         try:
-            data = json.loads(body)
+            data = rpc_json(body)
             submissions = data.get("submissions", [])
         except Exception:
             pass
@@ -206,27 +221,27 @@ def build_extended_checks(cfg, fixture):
     # Vote on first submission
     c = Check("T3", "can vote on submission")
     status, body, _ = request(
-        f"{base}/rpc/voting.vote",
+        f"{base}/rpc/voting/vote",
         method="POST",
-        body={"input": {"eventId": event_id, "submissionId": sub_id}},
-        cookie=participant_cookie
+        body={"json": {"eventId": event_id, "submissionId": sub_id}},
+        header=participant_cookie
     )
     c.ok = status == 200
     if not c.ok:
-        c.note(f"POST /rpc/voting.vote -> {status}: {body[:200]}")
+        c.note(f"POST /rpc/voting/vote -> {status}: {body[:200]}")
     checks.append(c)
 
     # Check vote count updates
     c = Check("T3", "vote count updates")
     status, body, _ = request(
-        f"{base}/rpc/voting.counts",
+        f"{base}/events/{event_id}/votes",
         method="POST",
-        body={"input": {"eventId": event_id}}
+        body={"json": {"eventId": event_id}}
     )
     c.ok = status == 200
     if c.ok:
         try:
-            data = json.loads(body)
+            data = rpc_json(body)
             for item in data:
                 if item.get("submissionId") == sub_id:
                     if item.get("votes", 0) >= 1:
@@ -245,7 +260,7 @@ def build_extended_checks(cfg, fixture):
     c = Check("T3", "quadratic influence computed")
     if status == 200:
         try:
-            data = json.loads(body)
+            data = rpc_json(body)
             for item in data:
                 if item.get("submissionId") == sub_id:
                     votes = item.get("votes", 0)
@@ -270,57 +285,57 @@ def build_extended_checks(cfg, fixture):
     # Unvote
     c = Check("T3", "can unvote")
     status, body, _ = request(
-        f"{base}/rpc/voting.unvote",
+        f"{base}/rpc/voting/unvote",
         method="POST",
-        body={"input": {"eventId": event_id, "submissionId": sub_id}},
-        cookie=participant_cookie
+        body={"json": {"eventId": event_id, "submissionId": sub_id}},
+        header=participant_cookie
     )
     c.ok = status == 200
     if not c.ok:
-        c.note(f"POST /rpc/voting.unvote -> {status}: {body[:200]}")
+        c.note(f"POST /rpc/voting/unvote -> {status}: {body[:200]}")
     checks.append(c)
 
     # --- T3: Comments ---
     c = Check("T3", "can list comments")
     status, body, _ = request(
-        f"{base}/rpc/comments.list",
+        f"{base}/rpc/comments/list",
         method="POST",
-        body={"input": {"submissionId": sub_id, "limit": 10, "page": 1}}
+        body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
     )
     c.ok = status == 200
     if not c.ok:
-        c.note(f"POST /rpc/comments.list -> {status}")
+        c.note(f"POST /rpc/comments/list -> {status}")
     checks.append(c)
 
     c = Check("T3", "can create comment")
     status, body, _ = request(
-        f"{base}/rpc/comments.create",
+        f"{base}/rpc/comments/create",
         method="POST",
-        body={"input": {"submissionId": sub_id, "content": "Extended verifier test comment"}},
-        cookie=participant_cookie
+        body={"json": {"submissionId": sub_id, "content": "Extended verifier test comment"}},
+        header=participant_cookie
     )
     c.ok = status == 200
     comment_id = None
     if c.ok:
         try:
-            data = json.loads(body)
+            data = rpc_json(body)
             comment_id = data.get("id")
         except Exception:
             pass
     if not c.ok:
-        c.note(f"POST /rpc/comments.create -> {status}: {body[:200]}")
+        c.note(f"POST /rpc/comments/create -> {status}: {body[:200]}")
     checks.append(c)
 
     c = Check("T3", "comment appears in list")
     if comment_id:
         status, body, _ = request(
-            f"{base}/rpc/comments.list",
+            f"{base}/rpc/comments/list",
             method="POST",
-            body={"input": {"submissionId": sub_id, "limit": 10, "page": 1}}
+            body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
         )
         if status == 200:
             try:
-                data = json.loads(body)
+                data = rpc_json(body)
                 for item in data:
                     if item.get("id") == comment_id:
                         c.ok = True
@@ -341,24 +356,24 @@ def build_extended_checks(cfg, fixture):
     c = Check("T3", "can delete own comment (soft)")
     if comment_id:
         status, body, _ = request(
-            f"{base}/rpc/comments.delete",
+            f"{base}/rpc/comments/delete",
             method="POST",
-            body={"input": {"commentId": comment_id}},
-            cookie=participant_cookie
+            body={"json": {"commentId": comment_id}},
+            header=participant_cookie
         )
         c.ok = status == 200
         if not c.ok:
-            c.note(f"POST /rpc/comments.delete -> {status}: {body[:200]}")
+            c.note(f"POST /rpc/comments/delete -> {status}: {body[:200]}")
         else:
             # Verify soft delete - content should be "[deleted]"
             status, body, _ = request(
-                f"{base}/rpc/comments.list",
+                f"{base}/rpc/comments/list",
                 method="POST",
-                body={"input": {"submissionId": sub_id, "limit": 10, "page": 1}}
+                body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
             )
             if status == 200:
                 try:
-                    data = json.loads(body)
+                    data = rpc_json(body)
                     for item in data:
                         if item.get("id") == comment_id:
                             if item.get("content") == "[deleted]":
@@ -384,13 +399,13 @@ def build_extended_checks(cfg, fixture):
     # We verify the ballotSeed table gets populated
     # For now, just check the API returns submissions
     status, body, _ = request(
-        f"{base}/rpc/submissions.gallery",
+        f"{base}/rpc/submissions/gallery",
         method="POST",
-        body={"input": {"eventId": event_id, "sortBy": "random", "limit": 5, "page": 1}}
+        body={"json": {"eventId": event_id, "sortBy": "random", "limit": 5, "page": 1}}
     )
     c.ok = status == 200
     if not c.ok:
-        c.note(f"POST /rpc/submissions.gallery (random) -> {status}")
+        c.note(f"POST /rpc/submissions/gallery (random) -> {status}")
     checks.append(c)
 
     # --- T3: Email-gated voting ---
