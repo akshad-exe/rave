@@ -5,7 +5,6 @@ import { Skeleton } from "@rave/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  BarChartIcon,
   CalendarIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -96,7 +95,7 @@ function OrganizerDashboardComponent() {
         <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
           Quick Actions
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <ActionCard
             description="Set up a new hackathon"
             href="/organizer/events/new"
@@ -104,22 +103,16 @@ function OrganizerDashboardComponent() {
             title="Create Event"
           />
           <ActionCard
-            description="View and manage registrations"
-            href="/organizer/participants"
-            icon={UsersIcon}
-            title="Manage Participants"
-          />
-          <ActionCard
-            description="Set up rubrics and assign judges"
-            href="/organizer/judging"
+            description="Pick an event to assign judges and publish results"
+            href="/organizer/events"
             icon={ShieldIcon}
             title="Configure Judging"
           />
           <ActionCard
-            description="Track event performance"
-            href="/organizer/analytics"
-            icon={BarChartIcon}
-            title="View Analytics"
+            description="See every event you organize"
+            href="/organizer/events"
+            icon={UsersIcon}
+            title="Your Events"
           />
         </div>
       </section>

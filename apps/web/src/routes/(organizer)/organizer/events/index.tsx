@@ -20,10 +20,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRightIcon,
+  BarChartIcon,
   CalendarIcon,
   EditIcon,
   MoreHorizontalIcon,
   PlusIcon,
+  ScaleIcon,
 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -270,6 +272,24 @@ function EventRow({ event }: { event: EventListItem }) {
               >
                 <EditIcon className="size-4" />
                 Manage rubric
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                params={{ eventId: event.id }}
+                to="/organizer/events/$eventId/judging"
+              >
+                <ScaleIcon className="size-4" />
+                Judging console
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                params={{ eventId: event.id }}
+                to="/organizer/events/$eventId/results"
+              >
+                <BarChartIcon className="size-4" />
+                Results
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
