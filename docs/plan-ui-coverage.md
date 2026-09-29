@@ -27,22 +27,38 @@ clicks costs more than a large internal tool. Stop after any phase and the tree 
 
 Kept here so progress is measurable. "Reachable" means a person can complete the action through the UI.
 
-| Phase | Operations closed | Reachable after |
-|---|---|---|
-| Start | — | 33 / 70 (47%) |
-| 0 — Judge console | 5 | 38 / 70 (54%) |
-| 1 — Results & lifecycle | 5 | 43 / 70 (61%) |
-| 2 — Data in and out | 9 | 52 / 70 (74%) |
-| 3 — Event configuration | 7 | 59 / 70 (84%) |
-| 4 — Team & submission admin | 6 | 65 / 70 (92%) |
-| 5 — Platform administration | 4 | 69 / 70 (98%) |
-| 6 — Regression guard | 0 (prevents regressions) | 69 / 70 (98%) |
+| Phase | Operations closed | Status | Reachable after |
+|---|---|---|---|
+| Start | — | — | 33 / 70 (47%) |
+| 0 — Judge console | 5 | ✅ done | 38 / 70 (54%) |
+| 1 — Results & lifecycle | 5 | ✅ done | 43 / 70 (61%) |
+| 2 — Data in and out | 9 | ✅ done | 52 / 70 (74%) |
+| 3 — Event configuration | 7 | ✅ done | 59 / 70 (84%) |
+| 4 — Team & submission admin | 6 | ✅ done | 65 / 70 (92%) |
+| 5 — Platform administration | 4 | ✅ done | 69 / 70 (98%) |
+| 6 — Regression guard | 0 | ⬜ not done | 69 / 70 (98%) |
 
-The 1 that remains is `healthCheck`, which is an infrastructure probe and should never have a UI.
+Phases 0–5 are complete and verified against the seeded fixture, and every operation each phase promised was
+checked to exist in the contract. Phase 6 is the one item left, and it is the only one that was never about
+building a screen.
+
+Two phases needed new API surface before their UI could exist, which the estimates above did not anticipate:
+`assignments.judgePool` in phase 0, and `teams.listInvitations` in phase 4. In both cases the operation already
+existed but nothing reachable could supply its input.
+
+The contract also grew twice while the phases were being built, so the denominator moved: 70 → 72.
+
+| | Operations |
+|---|---|
+| Reachable | **70** |
+| Deliberately not | 2 — `healthCheck` (an infrastructure probe) and `privateData` (a better-auth scaffold) |
+
+**Verified final position: 70 of 72 (97%).** See [`API-UI-COVERAGE.md`](API-UI-COVERAGE.md) for the
+per-route map and the method.
 
 ---
 
-## Phase 0 — Judge console for organizers
+## Phase 0 — Judge console for organizers  ✅
 
 **Closes 5 operations · kills 1 dead link · ~3h · no dependencies**
 
@@ -70,7 +86,7 @@ score, and read why any project is short of reviewers.
 
 ---
 
-## Phase 1 — Results and the judging lifecycle
+## Phase 1 — Results and the judging lifecycle  ✅
 
 **Closes 5 operations · ~3h · requires Phase 0**
 
@@ -93,7 +109,7 @@ readable without JavaScript, consistent with how the gallery and ballot are hand
 
 ---
 
-## Phase 2 — Data in and out
+## Phase 2 — Data in and out  ✅
 
 **Closes 9 operations · ~4h · no dependencies (can run in parallel with 0/1)**
 
@@ -124,7 +140,7 @@ per-row errors before writing anything.
 
 ---
 
-## Phase 3 — Event configuration
+## Phase 3 — Event configuration  ✅
 
 **Closes 7 operations · ~4h · no dependencies**
 
@@ -150,7 +166,7 @@ creation.
 
 ---
 
-## Phase 4 — Team and submission administration
+## Phase 4 — Team and submission administration  ✅
 
 **Closes 6 operations · ~3h · no dependencies**
 
@@ -178,7 +194,7 @@ invitations, and a submission can be disqualified with a recorded reason.
 
 ---
 
-## Phase 5 — Platform administration
+## Phase 5 — Platform administration  ✅
 
 **Closes 4 operations · ~3h · no dependencies**
 
@@ -202,7 +218,7 @@ client.
 
 ---
 
-## Phase 6 — Regression guard
+## Phase 6 — Regression guard  ⬜ NOT DONE
 
 **~1h · prevents the whole class of bug**
 
