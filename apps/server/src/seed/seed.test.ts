@@ -271,13 +271,15 @@ describe("generated .dogfood.toml", () => {
     const toml = renderDogfoodToml(
       seeded.credentials,
       seeded.accounts,
-      "http://localhost:3000"
+      "http://localhost:3000",
+      seeded.eventId
     );
 
     for (const route of Object.values(PORTAL_ROUTES)) {
       expect(toml).toContain(route);
     }
     expect(toml).toContain(peerScoresRoute(seeded.accounts.judgeA.id));
+    expect(toml).toContain(`${PORTAL_ROUTES.vote}/${seeded.eventId}`);
     expect(toml).toContain('claimed = ["T1", "T2"]');
     expect(toml).toContain(seeded.credentials.judgeA);
   });

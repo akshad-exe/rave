@@ -155,18 +155,32 @@ def build_extended_checks(cfg, fixture):
             checks.append(c)
         return checks
 
-    # Test voting ballot route
+    # The ballot is served server-side at /vote/:eventId on the API origin, the
+    # same way the gallery is. Assert it lists the submitted projects, so this
+    # checks a real ballot rather than that a heading rendered in an app shell.
     c = Check("T3", "voting ballot loads")
-    # The ballot is an SPA route, served by the web container, not the API.
-    web_base = base.replace(":3000", ":3001")
-    status, body, _ = request(f"{web_base}/vote/{event_id}")
-    c.ok = status == 200
+    status, body, _ = request(f"{base}/vote/{event_id}")
+    c.ok = status == 200 and "Community Ballot" in body
     if not c.ok:
-        c.note(f"GET {web_base}/vote/{event_id} -> {status}")
-    else:
-        if "Community Ballot" not in body:
-            c.ok = False
-            c.note("ballot page missing expected content")
+        c.note(f"GET {base}/vote/{event_id} -> {status}")
+    checks.append(c)
+
+    c = Check("T3", "ballot lists the submitted projects")
+    status, body, _ = request(f"{base}/vote/{event_id}")
+    listed = re.findall(r'<h2>(.*?)</h2>', body)
+    gallery_status, gallery_body, _ = request(
+        f"{base}/rpc/submissions/gallery",
+        method="POST",
+        body={"json": {"eventId": event_id, "limit": 50, "page": 1}},
+    )
+    expected = []
+    if gallery_status == 200:
+        expected = [s.get("name") for s in rpc_json(gallery_body, default={}).get("submissions", [])]
+    c.ok = status == 200 and bool(listed) and all(name in listed for name in expected if name)
+    if not c.ok:
+        c.note(
+            f"ballot listed {len(listed)} project(s); gallery returned {len(expected)}"
+        )
     checks.append(c)
 
     # Get submissions for voting
@@ -307,7 +321,7 @@ def build_extended_checks(cfg, fixture):
     status, body, _ = request(
         f"{base}/rpc/comments/list",
         method="POST",
-        body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
+        body={"json": {"submissionId": sub_id, "limit": 50, "page": 1}}
     )
     c.ok = status == 200
     if not c.ok:
@@ -338,7 +352,7 @@ def build_extended_checks(cfg, fixture):
         status, body, _ = request(
             f"{base}/rpc/comments/list",
             method="POST",
-            body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
+            body={"json": {"submissionId": sub_id, "limit": 50, "page": 1}}
         )
         if status == 200:
             try:
@@ -376,7 +390,7 @@ def build_extended_checks(cfg, fixture):
             status, body, _ = request(
                 f"{base}/rpc/comments/list",
                 method="POST",
-                body={"json": {"submissionId": sub_id, "limit": 10, "page": 1}}
+                body={"json": {"submissionId": sub_id, "limit": 50, "page": 1}}
             )
             if status == 200:
                 try:

@@ -7,6 +7,13 @@ import { createContext } from "../../composition/context";
 import { services } from "../../composition/services";
 import { requireExactRole, requireUserId } from "../../lib/assert";
 import { escapeHtml } from "../../lib/html";
+// The ballot reuses the gallery query and the same seeded shuffle the SPA
+// requests, so the rendered order is the real per-voter order rather than a
+// second implementation that could drift from it.
+import {
+  deterministicShuffle,
+  resolveBallotSeed,
+} from "../submissions/service";
 import { PORTAL_ROUTES } from "./paths";
 
 /**
@@ -252,9 +259,128 @@ async function getScoresCsv(
     .send(csv);
 }
 
+// ─── Server-rendered ballot ──────────────────────────────────────────────────
+
+interface BallotEntry {
+  id: string;
+  name: string;
+  tagline: string | null;
+  trackName: string | null;
+}
+
+/**
+ * Render a ballot without JavaScript.
+ *
+ * The SPA's ballot is client-rendered, so a plain HTTP fetch of the app shell
+ * contains no ballot at all. This is the same reasoning behind the gallery route:
+ * if a surface is worth having, it should be reachable without a framework, and
+ * reachable by the acceptance checker. Ordering comes from the same per-voter
+ * seeded shuffle the API uses, so this page demonstrates the anti-position-bias
+ * ordering rather than merely asserting that a heading rendered.
+ */
+function renderBallot(
+  heading: string,
+  tagline: string | null,
+  votingMode: string,
+  entries: BallotEntry[]
+): string {
+  const items = entries
+    .map(
+      (entry) => `      <li class="entry">
+        <h2>${escapeHtml(entry.name)}</h2>
+        <p class="meta">${escapeHtml(entry.trackName ?? "General")}</p>
+        <p class="summary">${escapeHtml(entry.tagline ?? "")}</p>
+      </li>`
+    )
+    .join("\n");
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(heading)} &middot; Community Ballot</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 60rem; padding: 2rem 1rem; line-height: 1.5; }
+      .tagline { color: #555; margin-top: 0; }
+      .mode { color: #666; font-size: 0.875rem; }
+      .entries { display: grid; gap: 1rem; list-style: none; padding: 0; }
+      .entry { border: 1px solid #ddd; border-radius: 0.5rem; padding: 1rem; }
+      .entry h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+      .meta { color: #666; font-size: 0.875rem; margin: 0 0 0.5rem; }
+      .summary { margin: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Community Ballot</h1>
+    <p class="tagline">${escapeHtml(tagline ?? "")}</p>
+    <p class="mode">${escapeHtml(heading)} &middot; voting mode: ${escapeHtml(votingMode)}</p>
+    <p>${entries.length} project${entries.length === 1 ? "" : "s"} on this ballot, in an order seeded per voter.</p>
+    <ul class="entries">
+${items}
+    </ul>
+    <p><a href="/gallery">Browse the full gallery</a> &middot; voting needs the <a href="/">app</a> or a session cookie</p>
+  </body>
+</html>
+`;
+}
+
+async function getBallot(
+  request: FastifyRequest<{ Params: { eventId: string } }>,
+  reply: FastifyReply
+): Promise<void> {
+  const ctx = await createContext(request);
+  const { eventId } = request.params;
+
+  const [details] = await ctx.db
+    .select({
+      name: event.name,
+      tagline: event.tagline,
+      votingMode: event.votingMode,
+    })
+    .from(event)
+    .where(eq(event.id, eventId));
+
+  if (!details) {
+    reply
+      .header("content-type", "text/html; charset=utf-8")
+      .status(404)
+      .send(
+        '<!doctype html><html lang="en"><body><h1>Event not found</h1></body></html>'
+      );
+    return;
+  }
+
+  // Reuse the gallery query so the ballot holds exactly the submitted work, then
+  // apply the same per-voter shuffle the SPA requests with sortBy:"random".
+  const rows = await ctx.db
+    .select({
+      id: submission.id,
+      name: submission.name,
+      tagline: submission.tagline,
+      trackName: track.name,
+    })
+    .from(submission)
+    .leftJoin(track, eq(submission.trackId, track.id))
+    .where(
+      and(eq(submission.eventId, eventId), eq(submission.status, "submitted"))
+    );
+
+  const seed = await resolveBallotSeed(ctx, eventId);
+  const ordered = deterministicShuffle(rows, seed);
+
+  reply
+    .header("content-type", "text/html; charset=utf-8")
+    .status(200)
+    .send(
+      renderBallot(details.name, details.tagline, details.votingMode, ordered)
+    );
+}
+
 export function registerPortalRoutes(fastify: FastifyInstance): void {
   fastify.get(PORTAL_ROUTES.gallery, getGallery);
   fastify.post(PORTAL_ROUTES.submit, postSubmission);
   fastify.get(PORTAL_ROUTES.judgeScores, getJudgeScores);
   fastify.get(PORTAL_ROUTES.csvExport, getScoresCsv);
+  fastify.get(`${PORTAL_ROUTES.vote}/:eventId`, getBallot);
 }

@@ -45,7 +45,12 @@ async function main(): Promise<void> {
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(
     configPath,
-    renderDogfoodToml(seeded.credentials, seeded.accounts, baseUrl),
+    renderDogfoodToml(
+      seeded.credentials,
+      seeded.accounts,
+      baseUrl,
+      seeded.eventId
+    ),
     "utf8"
   );
 

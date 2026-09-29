@@ -16,7 +16,7 @@ import { assertSubmissionOpen, assertSubmissionOwner } from "./helpers";
 // Deterministic shuffle using Fisher-Yates algorithm with a seeded random number generator
 // One stable order per voter per event, so a ballot does not reshuffle between
 // page loads. Extracted from the gallery query to keep that function readable.
-async function resolveBallotSeed(
+export async function resolveBallotSeed(
   ctx: ServiceContext,
   eventId: string
 ): Promise<number> {
@@ -55,7 +55,7 @@ async function resolveBallotSeed(
   return seed;
 }
 
-function deterministicShuffle<T>(array: T[], seed: number): T[] {
+export function deterministicShuffle<T>(array: T[], seed: number): T[] {
   const result = [...array];
   let randomSeed = seed;
 

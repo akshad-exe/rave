@@ -15,7 +15,22 @@ export const PORTAL_ROUTES = {
   gallery: "/gallery",
   judgeScores: "/judging/scores",
   submit: "/submissions",
+  vote: "/vote",
 } as const;
+
+/**
+ * The server-rendered ballot for an event.
+ *
+ * The SPA renders its ballot client-side, so a static fetch of the app shell
+ * shows nothing — the same problem the plain gallery route exists to solve. This
+ * is the no-JavaScript path to a ballot, and it proves the per-voter ordering
+ * server-side rather than asserting that a heading rendered.
+ *
+ * @param eventId - Event whose ballot to render
+ */
+export function ballotRoute(eventId: string): string {
+  return `${PORTAL_ROUTES.vote}/${encodeURIComponent(eventId)}`;
+}
 
 /**
  * The URL that *would* return one judge's scores.
