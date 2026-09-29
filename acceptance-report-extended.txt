@@ -3,8 +3,8 @@ portal: http://localhost:3000
 
 T3  voting route accessible ............... PASS
 T3  can fetch public event ................ PASS
-T3  voting ballot loads ................... FAIL
-       ballot page missing expected content
+T3  voting ballot loads ................... PASS
+T3  ballot lists the submitted projects ... PASS
 T3  can fetch submissions for ballot ...... PASS
 T3  can vote on submission ................ PASS
 T3  vote count updates .................... PASS
@@ -18,5 +18,4 @@ T3  ballot ordering randomised per voter .. PASS
 T3  gated voting mode exists in schema .... PASS
        verified via database schema (votingMode enum includes 'gated')
 
-verified nothing
-note: claimed but not verified: T3
+verified T3
