@@ -43,7 +43,13 @@ function DropdownMenuTrigger({
       data-slot="dropdown-menu-trigger"
       render={render}
       {...props}
-    />
+    >
+      {/* Same dropped-children bug as DropdownMenuItem: destructured for the
+          asChild branch, so plain `<Trigger>label</Trigger>` rendered an
+          empty control. That is what left the theme switcher and the account
+          button as blank boxes. */}
+      {children}
+    </MenuPrimitive.Trigger>
   );
 }
 
@@ -136,7 +142,14 @@ function DropdownMenuItem({
       data-variant={variant}
       render={render}
       {...props}
-    />
+    >
+      {/* `children` is destructured for the asChild branch, so it is no
+          longer in `props`. Without this it was silently dropped and every
+          plain item rendered as an empty, clickable row — which is what made
+          the account menu look like an unreadable block of blank space.
+          CheckboxItem and RadioItem below already render it this way. */}
+      {children}
+    </MenuPrimitive.Item>
   );
 }
 

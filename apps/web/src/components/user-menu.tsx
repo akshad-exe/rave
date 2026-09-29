@@ -10,6 +10,7 @@ import {
 } from "@rave/ui/components/dropdown-menu";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { UserIcon } from "lucide-react";
 import { useCallback } from "react";
 
 import { authClient } from "@/lib/auth-client";
@@ -44,8 +45,18 @@ export default function UserMenu() {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" />}>
-        {session.user.name}
+      {/* `asChild` + the button as child, not `render={<Button />}`. The
+          wrapper derives base-ui's `render` from Children.only(children), so a
+          bare render prop left the trigger childless and the account control
+          rendered as an empty box in both themes. */}
+      <DropdownMenuTrigger asChild>
+        <Button className="gap-2" variant="outline">
+          <UserIcon className="size-4" />
+          <span className="hidden sm:inline">{session.user.name}</span>
+          <span className="sm:hidden">
+            {session.user.name?.charAt(0) ?? "?"}
+          </span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="bg-card">
         <DropdownMenuGroup>
