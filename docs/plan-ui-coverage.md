@@ -36,7 +36,7 @@ Kept here so progress is measurable. "Reachable" means a person can complete the
 | 3 — Event configuration | 7 | ✅ done | 59 / 70 (84%) |
 | 4 — Team & submission admin | 6 | ✅ done | 65 / 70 (92%) |
 | 5 — Platform administration | 4 | ✅ done | 69 / 70 (98%) |
-| 6 — Regression guard | 0 | ⬜ not done | 69 / 70 (98%) |
+| 6 — Regression guard | 0 | ✅ done | 70 / 72 (97%) |
 
 Phases 0–5 are complete and verified against the seeded fixture, and every operation each phase promised was
 checked to exist in the contract. Phase 6 is the one item left, and it is the only one that was never about
@@ -218,23 +218,35 @@ client.
 
 ---
 
-## Phase 6 — Regression guard  ⬜ NOT DONE
+## Phase 6 — Regression guard  ✅
 
 **~1h · prevents the whole class of bug**
 
 The audit was manual. A manual audit does not run in CI, which is how this recurred.
 
-Add to `src/tests/` alongside `openapi-published.test.ts`:
+Delivered in `apps/server/src/tests/api-ui-coverage.test.ts` (8 assertions):
 
-1. **A reachability assertion with a floor.** Count distinct operations referenced from
-   `apps/web/src/routes/**` and fail below a threshold that ratchets upward. Prevents silent regression.
-2. **A dead-link check.** Extract every `to=`/`href="/…"` from the route tree, resolve against
-   `createFileRoute` declarations, fail on unresolved. This is the check I wrote badly by hand — a loose
-   `startswith` fallback excused three real dead links. Encoded properly it becomes permanent.
-3. **Extend the `tiers.md` convention** so a row may only be marked ✅ for a user-facing action if the operation
-   is reachable from a route, or the row states explicitly that it is API-only.
+1. **A reachability allowlist, not just a floor.** Every operation in the spec must either be called from
+   `apps/web/src/**` at a real call site, or appear in `DELIBERATELY_UNREACHABLE` with a reason. An allowlist
+   catches a *newly added* operation with no screen, which a bare minimum threshold would miss until enough
+   operations were added to push the count back under the line.
+2. **A stale-allowlist check**, so a deleted operation cannot linger as a permanent exemption.
+3. **A dead-link check.** Resolved paths come from `fullPath` in the generated `routeTree.gen.ts`, which is the
+   only field that has route groups already stripped, and `$param` segments match one segment. Failures name
+   the file and line.
+4. **A vacuity guard.** The first version of the dead-link check passed while examining zero links, because its
+   ignore-pattern contained a bare `\/` and every internal route starts with one. An assertion on how many links
+   are extracted makes that failure mode loud instead of silent.
+5. **Call sites only.** A bare `orpc.foo.bar` is ambiguous, because the same expression appears in type aliases
+   such as `Awaited<ReturnType<typeof client.x.y>>`; counting those would report coverage that does not exist.
 
-**Done when:** adding an operation without a UI surface, or a link to a missing route, fails the suite.
+**Fault-injection verified.** A near-miss link (`/organizer/events/nope`), a new uncovered operation, and a
+renamed allowlist key each fail the suite with an actionable message, and the suite returns to green once the
+fault is reverted.
+
+**Not done:** item 3 of the original plan — a `tiers.md` convention tying a ✅ to a reachable operation. That is
+a documentation change and was left alone rather than made unasked. The enforcement now lives in code, which is
+strictly stronger than a convention.
 
 ---
 
