@@ -93,6 +93,18 @@ export const assignmentsRouter = {
     .handler(({ context, input }) =>
       context.services.assignments.getAssignedSubmission(context, input)
     ),
+  // Organizer: enumerate the judge pool for the batch-assign picker
+  judgePool: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/events/{eventId}/judge-pool",
+      summary: "List judges available to assign on this event",
+      tags: ["Assignments"],
+    })
+    .input(eventIdInput)
+    .handler(({ context, input }) =>
+      context.services.assignments.judgePool(context, input)
+    ),
 
   // Judge: get my assignments
   myAssignments: protectedProcedure

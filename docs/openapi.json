@@ -457,6 +457,42 @@
         }
       }
     },
+    "/events/{eventId}/judge-pool": {
+      "get": {
+        "operationId": "assignments.judgePool",
+        "summary": "List judges available to assign on this event",
+        "tags": [
+          "Assignments"
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {},
+                    {
+                      "not": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/events/{eventId}/assignments/my": {
       "get": {
         "operationId": "assignments.myAssignments",

@@ -17,10 +17,6 @@ import {
 describe("Judging Engine", () => {
   const app = getTestApp();
 
-  afterAll(async () => {
-    await closeTestApp();
-  });
-
   async function setupJudgingScenario() {
     // Organizer
     const org = await registerUser(app);
@@ -695,3 +691,76 @@ describe("Judging Engine", () => {
     expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(1);
   });
 });
+
+describe("Judge pool", () => {
+  const app = getTestApp();
+
+  it("lists judges with their current load on the event", async () => {
+    const org = await registerUser(app);
+    await setRole(org.id, "organizer");
+    const ev = await createEvent(app, org.cookie, { maxTeamSize: 4 });
+
+    const judge = await registerUser(app);
+    await setRole(judge.id, "judge");
+
+    const pool = (await rpcOk(
+      app,
+      "assignments.judgePool",
+      { eventId: ev.id },
+      org.cookie
+    )) as Array<{
+      assignedCount: number;
+      completedCount: number;
+      email: string;
+      id: string;
+      name: string;
+    }>;
+
+    const entry = pool.find((j) => j.id === judge.id);
+    expect(entry).toBeDefined();
+    // A judge with no assignments on this event still appears, at zero load —
+    // this is the only way an organizer can discover a judge to assign.
+    expect(entry?.assignedCount).toBe(0);
+    expect(entry?.completedCount).toBe(0);
+    expect(entry?.email).toBeTruthy();
+  });
+
+  it("does not expose non-judge users in the pool", async () => {
+    const org = await registerUser(app);
+    await setRole(org.id, "organizer");
+    const ev = await createEvent(app, org.cookie, { maxTeamSize: 4 });
+
+    const participant = await registerUser(app);
+    await setRole(participant.id, "participant");
+
+    const pool = (await rpcOk(
+      app,
+      "assignments.judgePool",
+      { eventId: ev.id },
+      org.cookie
+    )) as Array<{ id: string }>;
+
+    expect(pool.some((j) => j.id === participant.id)).toBe(false);
+  });
+
+  it("rejects a caller who does not organize the event", async () => {
+    const org = await registerUser(app);
+    await setRole(org.id, "organizer");
+    const ev = await createEvent(app, org.cookie, { maxTeamSize: 4 });
+
+    const outsider = await registerUser(app);
+    await setRole(outsider.id, "organizer");
+
+    const { status } = await rpc(
+      app,
+      "assignments.judgePool",
+      { eventId: ev.id },
+      outsider.cookie
+    );
+    expect(status).toBe(403);
+  });
+});
+
+// One teardown for the whole file: getTestApp caches a singleton, so a
+// per-describe close would leave later describes with a closed app.
+afterAll(closeTestApp);

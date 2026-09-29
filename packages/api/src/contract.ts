@@ -314,6 +314,16 @@ export interface AssignmentDetails {
   skipped: Array<{ judgeId: string; reason: string; submissionId: string }>;
 }
 
+export interface JudgePoolEntry {
+  /** Assignments already held by this judge on this event. */
+  assignedCount: number;
+  /** Of those, the ones already scored. */
+  completedCount: number;
+  email: string;
+  id: string;
+  name: string;
+}
+
 export interface AssignmentsService {
   assign: (
     ctx: ServiceContext,
@@ -331,6 +341,17 @@ export interface AssignmentsService {
     ctx: ServiceContext,
     input: z.infer<typeof judgingSchemas.assignmentIdInput>
   ) => Promise<{ assignment: JudgeAssignmentRow; submission: JudgeSubmission }>;
+  /**
+   * Organizer: every user holding the `judge` role, with their current load on
+   * this event. The batch-assign picker has no other way to enumerate judges:
+   * there is no judge-event membership table, so `judgeAssignment` rows only
+   * exist once an assignment has already been made, and the platform-wide
+   * `admin.listUsers` is reserved for admins — an organizer cannot call it.
+   */
+  judgePool: (
+    ctx: ServiceContext,
+    input: z.infer<typeof judgingSchemas.eventIdInput>
+  ) => Promise<JudgePoolEntry[]>;
   myAssignments: (
     ctx: ServiceContext,
     input: z.infer<typeof judgingSchemas.eventIdInput>

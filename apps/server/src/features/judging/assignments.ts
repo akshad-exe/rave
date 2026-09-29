@@ -7,8 +7,14 @@ import {
   notFound,
 } from "@rave/api/errors";
 import { generateId } from "@rave/api/id";
-import { judgeAssignment, submission, teamMember } from "@rave/db";
-import { and, count, eq, inArray } from "drizzle-orm";
+import {
+  judgeAssignment,
+  submission,
+  teamMember,
+  user,
+  userProfile,
+} from "@rave/db";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 
 import {
   assertEventOrganizer,
@@ -315,6 +321,49 @@ export const assignmentsService: AssignmentsService = {
       assignment,
       submission: requireRow(subRows, "Submission not found"),
     };
+  },
+  // Organizer: enumerate the judge pool for an event
+  async judgePool(ctx, input) {
+    await assertEventOrganizer(ctx, input.eventId);
+
+    const judges = await ctx.db
+      .select({ email: user.email, id: user.id, name: user.name })
+      .from(user)
+      .innerJoin(userProfile, eq(userProfile.userId, user.id))
+      .where(eq(userProfile.role, "judge"))
+      .orderBy(user.name);
+
+    if (judges.length === 0) {
+      return [];
+    }
+
+    // Current load per judge on this event, so the organizer can see who has
+    // room before assigning rather than discovering it from a skip reason.
+    const loadRows = await ctx.db
+      .select({
+        assignedCount: count(),
+        completedCount:
+          sql<number>`count(*) filter (where ${judgeAssignment.status} = 'completed')`.mapWith(
+            Number
+          ),
+        judgeId: judgeAssignment.judgeId,
+      })
+      .from(judgeAssignment)
+      .where(eq(judgeAssignment.eventId, input.eventId))
+      .groupBy(judgeAssignment.judgeId);
+
+    const loadByJudge = new Map(loadRows.map((r) => [r.judgeId, r]));
+
+    return judges.map((judge) => {
+      const load = loadByJudge.get(judge.id);
+      return {
+        assignedCount: load ? Number(load.assignedCount) : 0,
+        completedCount: load ? Number(load.completedCount) : 0,
+        email: judge.email,
+        id: judge.id,
+        name: judge.name,
+      };
+    });
   },
 
   // Judge: get my assignments
