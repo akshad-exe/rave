@@ -6,18 +6,14 @@ import {
   TabsTrigger,
 } from "@rave/ui/components/tabs";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeftIcon,
-  CalendarIcon,
-  GiftIcon,
-  SlidersHorizontalIcon,
-} from "lucide-react";
+import { CalendarIcon, GiftIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useCallback } from "react";
 import { z } from "zod";
+import { PageHeader, PageSkeleton } from "@/components/page-header";
 import { orpc } from "@/utils/orpc";
 import { EventDetailsPanel } from "./details";
 import { PrizesPanel } from "./prizes";
-import { type AdminEvent, SettingsSkeleton } from "./shared";
+import type { AdminEvent } from "./shared";
 import { TracksPanel } from "./tracks";
 
 /**
@@ -34,7 +30,7 @@ import { TracksPanel } from "./tracks";
  * component reaching for `useParams` with a hardcoded route id.
  */
 
-export const SETTINGS_TABS = [
+const SETTINGS_TABS = [
   { icon: SlidersHorizontalIcon, label: "Details", value: "details" },
   { icon: CalendarIcon, label: "Tracks", value: "tracks" },
   { icon: GiftIcon, label: "Prizes", value: "prizes" },
@@ -80,8 +76,13 @@ export function EventSettingsPage({
   if (eventQuery.status === "pending") {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
-        <PageHeader />
-        <SettingsSkeleton />
+        <PageHeader
+          backLabel="Back to events"
+          description="Change the details, schedule, tracks and prizes of this event."
+          title="Event settings"
+          to="/organizer/events"
+        />
+        <PageSkeleton />
       </div>
     );
   }
@@ -89,7 +90,12 @@ export function EventSettingsPage({
   if (!eventQuery.data) {
     return (
       <div className="mx-auto max-w-4xl space-y-6">
-        <PageHeader />
+        <PageHeader
+          backLabel="Back to events"
+          description="Change the details, schedule, tracks and prizes of this event."
+          title="Event settings"
+          to="/organizer/events"
+        />
         <Alert
           description="We could not load this event."
           title="Event unavailable"
@@ -103,7 +109,12 @@ export function EventSettingsPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader name={event.name} />
+      <PageHeader
+        backLabel="Back to events"
+        description="Change the details, schedule, tracks and prizes of this event."
+        title={`${event.name} settings`}
+        to="/organizer/events"
+      />
       <Tabs defaultIndex={activeIndex} onChange={handleChange}>
         <TabsList className="w-full sm:w-auto">
           {SETTINGS_TABS.map(({ icon: Icon, label }, index) => (
@@ -128,25 +139,5 @@ export function EventSettingsPage({
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function PageHeader({ name }: { name?: string }) {
-  return (
-    <header className="flex flex-col gap-1">
-      <a
-        className="mb-2 flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
-        href="/organizer/events"
-      >
-        <ArrowLeftIcon className="size-3.5" />
-        Back to events
-      </a>
-      <h1 className="font-bold font-display text-3xl text-foreground">
-        {name ? `${name} settings` : "Event settings"}
-      </h1>
-      <p className="text-muted-foreground">
-        Change the details, schedule, tracks and prizes of this event.
-      </p>
-    </header>
   );
 }

@@ -24,7 +24,7 @@ import {
  * "reveal" is not a leap of faith.
  */
 
-export function ResultsSkeleton() {
+function ResultsSkeleton() {
   return (
     <Card variant="default">
       <CardHeader>
@@ -113,7 +113,7 @@ export function AdminResultsPanel({
   );
 }
 
-export function AdminResultRow({
+function AdminResultRow({
   row,
   tracks,
 }: {

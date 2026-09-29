@@ -155,6 +155,9 @@ function ProjectScoreRow({
   );
 }
 
+const CHIP_CLASS =
+  "inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs";
+
 function ScoreChip({
   judgeId,
   totalScore,
@@ -166,7 +169,7 @@ function ScoreChip({
 }) {
   const isScored = totalScore !== null;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-2 py-1 text-xs">
+    <span className={CHIP_CLASS}>
       <UsersIcon className="size-3 text-muted-foreground" />
       <span className="text-muted-foreground">{judgeName(pool, judgeId)}</span>
       <span className={isScored ? "font-medium" : "text-muted-foreground"}>

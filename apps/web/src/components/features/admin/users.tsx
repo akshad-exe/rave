@@ -199,7 +199,7 @@ export function UsersPanel() {
   );
 }
 
-export function matchesSearch(row: UserRow, search: string): boolean {
+function matchesSearch(row: UserRow, search: string): boolean {
   const q = search.trim().toLowerCase();
   if (!q) {
     return true;
@@ -210,7 +210,7 @@ export function matchesSearch(row: UserRow, search: string): boolean {
   );
 }
 
-export function UserRoleRow({
+function UserRoleRow({
   row,
   onChange,
 }: {

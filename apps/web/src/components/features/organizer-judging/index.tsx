@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeftIcon } from "lucide-react";
-import { z } from "zod";
+import { PageHeader } from "@/components/page-header";
 import { orpc } from "@/utils/orpc";
 import { BatchAssignPanel } from "./batch-assign";
 import { ProgressPanel } from "./progress";
@@ -17,15 +16,6 @@ import { SingleAssignPanel } from "./single-assign";
  * (`defaultPreload: "intent"`) and fetch progress and scores for an organizer
  * who only opened the page to look at one panel.
  */
-
-export const judgingSearchSchema = z.object({
-  panel: z
-    .enum(["assign", "progress", "scores", "single"])
-    .catch("progress")
-    .default("progress"),
-});
-
-export type JudgingPanel = z.infer<typeof judgingSearchSchema>["panel"];
 
 export function JudgingConsole({ eventId }: { eventId: string }) {
   const progressQuery = useQuery(
@@ -48,22 +38,12 @@ export function JudgingConsole({ eventId }: { eventId: string }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-1">
-        <a
-          className="mb-2 flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
-          href="/organizer/events"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back to events
-        </a>
-        <h1 className="font-bold font-display text-3xl text-foreground">
-          Judging Console
-        </h1>
-        <p className="text-muted-foreground">
-          Assign judges, watch progress, and review every score before results
-          are computed.
-        </p>
-      </header>
+      <PageHeader
+        backLabel="Back to events"
+        description="Assign judges, watch progress, and review every score before results are computed."
+        title="Judging Console"
+        to="/organizer/events"
+      />
 
       <ProgressPanel
         pool={pool}

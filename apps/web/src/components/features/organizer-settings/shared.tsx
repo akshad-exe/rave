@@ -8,7 +8,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@rave/ui/components/alert-dialog";
-import { Card, CardContent, CardHeader } from "@rave/ui/components/card";
 import { handleDialogClose } from "@/lib/handlers";
 import type { client } from "@/utils/orpc";
 
@@ -103,27 +102,5 @@ export function ConfirmDeleteDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
-}
-
-export function SettingsSkeleton() {
-  return (
-    <div className="space-y-6">
-      {(["a", "b"] as const).map((k) => (
-        <Card key={k} variant="default">
-          <CardHeader>
-            <div className="h-5 w-32 animate-pulse rounded bg-muted" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(["a", "b", "c"] as const).map((j) => (
-              <div
-                className="h-9 w-full animate-pulse rounded bg-muted"
-                key={j}
-              />
-            ))}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
   );
 }

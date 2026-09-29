@@ -15,9 +15,9 @@ import {
   SelectTrigger,
 } from "@rave/ui/components/select";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon } from "lucide-react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { orpc } from "@/utils/orpc";
 import { ComputePanel } from "./compute";
 import { LifecyclePanel } from "./lifecycle";
@@ -58,21 +58,12 @@ export function ResultsPage({ eventId }: { eventId: string }) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-1">
-        <a
-          className="mb-2 flex w-fit items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground"
-          href="/organizer/events"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back to events
-        </a>
-        <h1 className="font-bold font-display text-3xl text-foreground">
-          Results
-        </h1>
-        <p className="text-muted-foreground">
-          Compute normalized results, lock the score set, then publish.
-        </p>
-      </header>
+      <PageHeader
+        backLabel="Back to events"
+        description="Compute normalized results, lock the score set, then publish."
+        title="Results"
+        to="/organizer/events"
+      />
 
       <TrackFilterBar
         onChange={handleTrackChange}
