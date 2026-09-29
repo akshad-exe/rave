@@ -199,3 +199,63 @@ and assertion output.
 | `apps/server/src/features/results/service.ts` | `results.compute` — orchestrates the pipeline |
 | `packages/api/src/routers/results.ts` | `POST /events/{eventId}/results/compute` — the API endpoint |
 | `packages/api/src/schemas/results.ts` | `computeResultsInput.useNormalization` flag |
+
+---
+
+## 7. Assignment strategy
+
+A judge pool is only as good as the ballots it is handed. `assignments.batchAssign` takes a pool of judges, a
+set of submitted projects, and a per-project review target, and returns the plan plus a reason for every
+judge/project pair it did *not* create.
+
+**Coverage first, load second.** The obvious loop — walk the judges, give each N submissions — is greedy over
+submission order, so the earliest projects collect every judge and the last collect none. Measured on the
+fixture set (40 projects, 30 judges, target 3):
+
+| | greedy first-fit | current planner |
+|---|---|---|
+| reviews per project | 2 – 5 (spread 3) | **3 – 3 (spread 0)** |
+| load per judge | 1 – 11 (spread 10) | 2 – 7 (spread 5) |
+
+The planner walks **projects**, not judges. Each project asks for `reviewsPerSubmission` judges and, at every
+step, takes the eligible judge carrying the least work so far. Ties break on judge id, so the plan is
+deterministic: a re-run produces the same assignment, which is what makes a dry run worth anything.
+
+Judge load is still uneven, and deliberately so: a judge cannot review their own project, their own team's
+project, or a project they are already assigned (`batchSkipReason` in
+`features/judging/helpers.ts`). Those conflicts are the reason load spreads rather than settling at a flat
+120/30 = 4. A global min-cost assignment would narrow it further; per-project coverage is the property that
+matters more, because a starved project is a project nobody gets a fair shot at.
+
+**Every exclusion is reported.** `skipped` carries one entry per judge/project pair that was not created, with
+one of `own_submission`, `own_team`, `already_assigned`, or `judge_pool_exhausted`. An organizer can see
+exactly which project ran short of reviewers and why, instead of inferring it from a missing row.
+
+## 8. Role isolation
+
+Isolation is enforced in the services, not in the view. A judge reading a peer's scores is a credibility
+failure, so every read derives the identity from the session rather than from client input:
+
+- `getAssignmentForJudge` compares `assignment.judgeId` to the session user and throws
+  `forbidden("Not your assignment")` (`features/judging/helpers.ts`).
+- `scoring.getMyScore` calls `requireUserId(ctx)` and looks up by that id, so there is no judge id in the
+  request to tamper with.
+- `scoring.allScores` is organizer-only; a judge has no path to it.
+
+The plain-HTTP surface enforces the same rules, because the acceptance checker visits
+`/judging/scores?judge=<id>` *as a different judge* and expects a refusal — the check would pass against a
+fake control that only the UI respected. The full matrix is pinned by `src/tests/rbac.test.ts`,
+`security.test.ts` and `judging.test.ts`, and verified by the checker: `judge sees own scores` and
+`judge cannot see peer scores`.
+
+## 9. Audit trail
+
+Every privileged mutation is recorded with actor, resource and metadata: `judge.assign`, `score.submit`,
+`scores.lock`, `rubric.create`, `event.transition`, `event.update`, `event.reveal_results`, `results.compute`,
+`admin.set_role`, `vote.cast`, `vote.verify`, and the team mutations. Organizers read them through
+`admin.auditLog` and `admin.platformAuditLog` without touching a database client.
+
+The trail records **actions, not intent**, and that limit is stated in `docs/THREAT_MODEL.md`: two judges who
+quietly agree to inflate a project leave no trace. Cross-judge normalization dampens the effect; nothing
+detects the collusion. That is the most significant unmitigated threat in the judging layer, and the first
+thing we would build next.

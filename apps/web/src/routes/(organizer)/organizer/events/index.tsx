@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@rave/ui/components/dropdown-menu";
 import {
@@ -15,14 +16,17 @@ import {
   EmptyTitle,
 } from "@rave/ui/components/empty";
 import { Skeleton } from "@rave/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  ArrowRightIcon,
   CalendarIcon,
   EditIcon,
   MoreHorizontalIcon,
   PlusIcon,
 } from "lucide-react";
+import { useCallback } from "react";
+import { toast } from "sonner";
 import {
   formatDate,
   formatRelativeTime,
@@ -137,8 +141,86 @@ function renderEventsBody({
   );
 }
 
+// Mirrors VALID_STATUS_TRANSITIONS in apps/server/src/features/events/helpers.ts.
+// The server is still the authority; this only avoids offering an action the
+// server will refuse.
+type EventStatus =
+  | "archived"
+  | "draft"
+  | "judging"
+  | "registration"
+  | "results"
+  | "submission";
+
+const NEXT_STATUSES: Record<string, EventStatus[]> = {
+  archived: [],
+  draft: ["registration", "submission"],
+  judging: ["results", "submission"],
+  registration: ["submission", "draft"],
+  results: ["archived", "judging"],
+  submission: ["judging", "registration"],
+};
+
+const STATUS_ACTION_LABEL: Record<EventStatus, string> = {
+  archived: "Archive",
+  draft: "Move to draft",
+  judging: "Open judging",
+  registration: "Open registration",
+  results: "Publish results",
+  submission: "Open submissions",
+};
+
+// Owns its own stable callback so the menu is not handed a fresh function on
+// every render.
+function TransitionItem({
+  disabled,
+  onSelect,
+  status,
+}: {
+  disabled: boolean;
+  onSelect: (status: EventStatus) => void;
+  status: EventStatus;
+}) {
+  const handleSelect = useCallback(() => {
+    onSelect(status);
+  }, [onSelect, status]);
+
+  return (
+    <DropdownMenuItem disabled={disabled} onClick={handleSelect}>
+      <ArrowRightIcon className="size-4" />
+      {STATUS_ACTION_LABEL[status]}
+    </DropdownMenuItem>
+  );
+}
+
 function EventRow({ event }: { event: EventListItem }) {
   const statusConfig = getEventStatusConfig(event.status);
+  const queryClient = useQueryClient();
+
+  // Without this the event can never leave "submission", so judging is
+  // unreachable from the UI even though the API supports it.
+  const transition = useMutation(
+    orpc.events.transition.mutationOptions({
+      onSuccess: () => {
+        toast.success(`Event moved to ${statusConfig.label}`);
+        queryClient.invalidateQueries({ queryKey: ["events"] });
+      },
+      onError: (err: unknown) => {
+        toast.error(
+          err instanceof Error ? err.message : "Could not change phase"
+        );
+      },
+    })
+  );
+
+  const handleTransition = useCallback(
+    (status: EventStatus) => {
+      transition.mutate({ eventId: event.id, status });
+    },
+    [event.id, transition]
+  );
+
+  const nextStatuses = NEXT_STATUSES[event.status] ?? [];
 
   return (
     <tr className="border-border/50 border-b hover:bg-muted/30">
@@ -172,10 +254,22 @@ function EventRow({ event }: { event: EventListItem }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {nextStatuses.map((status) => (
+              <TransitionItem
+                disabled={transition.isPending}
+                key={status}
+                onSelect={handleTransition}
+                status={status}
+              />
+            ))}
+            {nextStatuses.length > 0 ? <DropdownMenuSeparator /> : null}
             <DropdownMenuItem asChild>
-              <Link to="/organizer/events">
+              <Link
+                params={{ eventId: event.id }}
+                to="/organizer/events/$eventId/rubric"
+              >
                 <EditIcon className="size-4" />
-                Manage Events
+                Manage rubric
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>

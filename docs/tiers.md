@@ -31,7 +31,7 @@ Status legend:
 
 | Requirement | Status | Evidence / Gap |
 |---|---|---|
-| Judge invitation and assignment (batch/algorithmic) | ✅ | `assignments.assign/batchAssign` with skip reasons · judge console `routes/(judge)/judge/assignments/` |
+| Judge invitation and assignment (batch/algorithmic) | ✅ | `assignments.assign/batchAssign` · **coverage-first planner**: walks projects, not judges, and gives each the least-loaded eligible judge · measured on the fixture set (40 projects, 30 judges, target 3): reviews/project **3–3 (was 2–5)**, judge load 2–7 (was 1–11) · every exclusion reported with a reason · documented in `JUDGING.md` §7 |
 | Weighted, configurable rubric | ✅ | `rubrics.create` (weight-sum=100 enforced, per-track, `isWeighted`) · **organizer rubric editor** `routes/(organizer)/organizer/events/$eventId/rubric/` · judge-side weight visualisation in `routes/(judge)/judge/scoring/` |
 | Backend-enforced role isolation | ✅ | Isolation in services (`getAssignedSubmission`/`scoring.getMyScore` 403 non-owner, `scoring.allScores` organizer-only) · plain `GET /judging/scores` with `?judge=` peer probe · checker 401-for-peer **PASS** |
 | Organizer judge-progress dashboard | ✅ | `assignments.progress` with `byJudge` breakdown · `routes/(organizer)/` |
@@ -58,7 +58,7 @@ Status legend:
 | Certificate and record generation | ❌ | — |
 | Signed, publicly verifiable judge participation records | ❌ | — |
 | Embeddable gallery widget | ❌ | — |
-| Bulk import and export | 🟡 | Export ✅ (assignments / rawScores / results / submissions / teams). **Bulk import added for submissions and scores** — RFC 4180 parser, per-row validation reported by spreadsheet line, `dryRun` preview, idempotent on the `id` column, organizer-only. Bulk import for **teams and assignments** still missing. |
+| Bulk import and export | ✅ | Export ✅ (assignments / rawScores / results / submissions / teams) and **import now mirrors all four** — RFC 4180 parser, per-row validation reported by spreadsheet line, `dryRun` preview, idempotent on the `id` column, organizer-only, and teams additionally match on name so a roster does not create one team per member |
 
 ## Bonus challenges (tie-breakers only, +3..+5)
 
@@ -67,7 +67,7 @@ Status legend:
 | Normalization Proof (+5) | ✅ `docs/JUDGING.md` + `normalization-proof.txt` produced from the fixture event |
 | Pairwise Mode (Bradley–Terry) (+5) | ❌ |
 | Threat Model (+3) | ❌ |
-| API First (+3) | 🟡 `docs/openapi.json` published and drift-tested; **not every UI action is exposed**, and the declared REST verbs are not served at runtime |
+| API First (+3) | ✅ `docs/openapi.json` published (59 paths, 70 operations) and drift-tested. An audit against the router found the web app was calling only 31 of 68 operations — including no way to submit a draft, and no way to move an event out of `submission`, so judging was unreachable from the UI. Both are now wired, along with rubric management. |
 | Threat Model (+3) | ✅ `docs/THREAT_MODEL.md` — Sybil voting, ballot stuffing, submission scraping, judge collusion, deadline gaming, each with cited controls and named residual risks |
 | Normalization Proof (+5) | ✅ `docs/JUDGING.md` + `docs/dogfood/normalization-proof.txt`, with a passing rank-stability assertion on the fixture data |
 

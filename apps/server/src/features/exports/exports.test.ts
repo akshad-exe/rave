@@ -221,6 +221,119 @@ describe("Bulk import", () => {
     expect(result.errors).toHaveLength(3);
   });
 
+  it("imports a team roster and is idempotent on membership", async () => {
+    const { ev, org } = await setupEvent();
+    const owner = await registerUser(app);
+    const member = await registerUser(app);
+
+    const csv = toCSV(
+      ["team_id", "team_name", "owner_id", "member_user_id"],
+      [
+        ["", "The Underdogs", owner.id, owner.id],
+        ["", "The Underdogs", "", member.id],
+      ]
+    );
+
+    const first = (await rpcOk(
+      app,
+      "exports.importTeams",
+      {
+        csv,
+        eventId: ev.id,
+      },
+      org.cookie
+    )) as { created: number; skipped: number };
+    expect(first.created).toBe(1);
+    expect(first.skipped).toBe(0);
+
+    // Re-importing the same roster must not add the member twice.
+    const second = (await rpcOk(
+      app,
+      "exports.importTeams",
+      {
+        csv,
+        eventId: ev.id,
+      },
+      org.cookie
+    )) as { skipped: number };
+    expect(second.skipped).toBe(0);
+
+    // listByEvent returns a bare array, not a wrapper object.
+    const teams = (await rpcOk(
+      app,
+      "teams.listByEvent",
+      {
+        eventId: ev.id,
+      },
+      org.cookie
+    )) as Array<{ id: string; name: string }>;
+    expect(teams.filter((t) => t.name === "The Underdogs")).toHaveLength(1);
+  });
+
+  it("reports a team row with no name", async () => {
+    const { ev, org } = await setupEvent();
+    const owner = await registerUser(app);
+    const csv = toCSV(["team_name", "owner_id"], [["", owner.id]]);
+
+    const result = (await rpcOk(
+      app,
+      "exports.importTeams",
+      {
+        csv,
+        eventId: ev.id,
+      },
+      org.cookie
+    )) as { errors: Array<{ message: string }>; skipped: number };
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]?.message).toContain("team_name");
+  });
+
+  it("imports judge assignments and rejects one with no judge", async () => {
+    const { ev, org } = await setupEvent();
+    const judge = await registerUser(app);
+    const author = await registerUser(app);
+    const sub = (await rpcOk(
+      app,
+      "submissions.create",
+      {
+        eventId: ev.id,
+        name: "Assigned Project",
+      },
+      author.cookie
+    )) as { id: string };
+    await rpcOk(
+      app,
+      "submissions.submit",
+      { submissionId: sub.id },
+      author.cookie
+    );
+
+    const good = toCSV(
+      ["assignment_id", "judge_id", "submission_id", "status"],
+      [
+        ["asg_1", judge.id, sub.id, "pending"],
+        ["asg_2", "", sub.id, "pending"],
+      ]
+    );
+
+    const result = (await rpcOk(
+      app,
+      "exports.importAssignments",
+      {
+        csv: good,
+        eventId: ev.id,
+      },
+      org.cookie
+    )) as {
+      created: number;
+      errors: Array<{ message: string }>;
+      skipped: number;
+    };
+    expect(result.created).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]?.message).toContain("judge_id");
+  });
+
   it("refuses a non-organizer", async () => {
     const { ev } = await setupEvent();
     const participant = await registerUser(app);

@@ -2,19 +2,37 @@
   "x-tagGroups": [
     {
       "name": "Admin & Operations",
-      "tags": ["Admin", "Exports", "Meta"]
+      "tags": [
+        "Admin",
+        "Exports",
+        "Meta"
+      ]
     },
     {
       "name": "Events & Configuration",
-      "tags": ["Events", "Tracks", "Prizes", "Rubrics"]
+      "tags": [
+        "Events",
+        "Tracks",
+        "Prizes",
+        "Rubrics"
+      ]
     },
     {
       "name": "Participants",
-      "tags": ["Teams", "Submissions", "Voting", "Comments"]
+      "tags": [
+        "Teams",
+        "Submissions",
+        "Voting",
+        "Comments"
+      ]
     },
     {
       "name": "Judging & Scoring",
-      "tags": ["Assignments", "Scoring", "Results"]
+      "tags": [
+        "Assignments",
+        "Scoring",
+        "Results"
+      ]
     }
   ],
   "info": {
@@ -28,7 +46,9 @@
       "get": {
         "operationId": "admin.auditLog",
         "summary": "Audit log for an event",
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -101,7 +121,9 @@
       "get": {
         "operationId": "admin.listUsers",
         "summary": "List all users with roles",
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -151,7 +173,9 @@
       "get": {
         "operationId": "admin.platformAuditLog",
         "summary": "Platform-wide audit log",
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "parameters": [
           {
             "name": "action",
@@ -210,7 +234,9 @@
       "put": {
         "operationId": "admin.setRole",
         "summary": "Set a user's role",
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "parameters": [
           {
             "name": "userId",
@@ -239,7 +265,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["role"]
+                "required": [
+                  "role"
+                ]
               }
             }
           }
@@ -267,7 +295,9 @@
       "post": {
         "operationId": "assignments.assign",
         "summary": "Assign a judge to a submission",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -292,7 +322,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["judgeId", "submissionId"]
+                "required": [
+                  "judgeId",
+                  "submissionId"
+                ]
               }
             }
           }
@@ -320,7 +353,9 @@
       "post": {
         "operationId": "assignments.batchAssign",
         "summary": "Batch assign judges to submissions",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -345,17 +380,24 @@
                       "type": "string"
                     }
                   },
-                  "submissionsPerJudge": {
+                  "reviewsPerSubmission": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 50,
-                    "default": 5
+                    "default": 3
+                  },
+                  "submissionsPerJudge": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 50
                   },
                   "trackId": {
                     "type": "string"
                   }
                 },
-                "required": ["judgeIds"]
+                "required": [
+                  "judgeIds"
+                ]
               }
             }
           }
@@ -383,7 +425,9 @@
       "get": {
         "operationId": "assignments.getAssignedSubmission",
         "summary": "Get your assigned submission details",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "assignmentId",
@@ -417,7 +461,9 @@
       "get": {
         "operationId": "assignments.myAssignments",
         "summary": "Get my judge assignments",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -451,7 +497,9 @@
       "get": {
         "operationId": "assignments.myProgress",
         "summary": "Get my judging progress",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -485,7 +533,9 @@
       "get": {
         "operationId": "assignments.progress",
         "summary": "Get judging progress overview",
-        "tags": ["Assignments"],
+        "tags": [
+          "Assignments"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -519,7 +569,9 @@
       "post": {
         "operationId": "comments.create",
         "summary": "Create a comment on a submission",
-        "tags": ["Comments"],
+        "tags": [
+          "Comments"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -543,7 +595,9 @@
                     "maxLength": 2000
                   }
                 },
-                "required": ["content"]
+                "required": [
+                  "content"
+                ]
               }
             }
           }
@@ -569,7 +623,9 @@
       "get": {
         "operationId": "comments.list",
         "summary": "List comments for a submission",
-        "tags": ["Comments"],
+        "tags": [
+          "Comments"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -627,7 +683,9 @@
       "delete": {
         "operationId": "comments.delete",
         "summary": "Delete a comment",
-        "tags": ["Comments"],
+        "tags": [
+          "Comments"
+        ],
         "parameters": [
           {
             "name": "commentId",
@@ -661,7 +719,9 @@
       "post": {
         "operationId": "events.create",
         "summary": "Create an event",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -693,11 +753,20 @@
                           "type": "boolean"
                         },
                         "type": {
-                          "enum": ["text", "url", "textarea"],
+                          "enum": [
+                            "text",
+                            "url",
+                            "textarea"
+                          ],
                           "type": "string"
                         }
                       },
-                      "required": ["id", "label", "required", "type"]
+                      "required": [
+                        "id",
+                        "label",
+                        "required",
+                        "type"
+                      ]
                     },
                     "default": []
                   },
@@ -775,7 +844,12 @@
                     "maxLength": 200
                   },
                   "votingMode": {
-                    "enum": ["disabled", "open", "authenticated", "gated"],
+                    "enum": [
+                      "disabled",
+                      "open",
+                      "authenticated",
+                      "gated"
+                    ],
                     "type": "string",
                     "default": "disabled"
                   },
@@ -784,7 +858,10 @@
                     "format": "uri"
                   }
                 },
-                "required": ["name", "slug"]
+                "required": [
+                  "name",
+                  "slug"
+                ]
               }
             }
           }
@@ -810,7 +887,9 @@
       "get": {
         "operationId": "events.list",
         "summary": "List events",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "limit",
@@ -886,7 +965,9 @@
       "get": {
         "operationId": "events.getAdmin",
         "summary": "Get full event details for admin/organizer",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -920,7 +1001,9 @@
       "get": {
         "operationId": "events.getBySlug",
         "summary": "Get a single event by slug",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "slug",
@@ -954,7 +1037,9 @@
       "post": {
         "operationId": "events.revealResults",
         "summary": "Reveal judging results for an event",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -988,7 +1073,9 @@
       "post": {
         "operationId": "events.transition",
         "summary": "Transition an event to a new status",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1018,7 +1105,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["status"]
+                "required": [
+                  "status"
+                ]
               }
             }
           }
@@ -1046,7 +1135,9 @@
       "patch": {
         "operationId": "events.update",
         "summary": "Update an event",
-        "tags": ["Events"],
+        "tags": [
+          "Events"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1087,11 +1178,20 @@
                           "type": "boolean"
                         },
                         "type": {
-                          "enum": ["text", "url", "textarea"],
+                          "enum": [
+                            "text",
+                            "url",
+                            "textarea"
+                          ],
                           "type": "string"
                         }
                       },
-                      "required": ["id", "label", "required", "type"]
+                      "required": [
+                        "id",
+                        "label",
+                        "required",
+                        "type"
+                      ]
                     }
                   },
                   "description": {
@@ -1164,7 +1264,12 @@
                     "maxLength": 200
                   },
                   "votingMode": {
-                    "enum": ["disabled", "open", "authenticated", "gated"],
+                    "enum": [
+                      "disabled",
+                      "open",
+                      "authenticated",
+                      "gated"
+                    ],
                     "type": "string"
                   },
                   "websiteUrl": {
@@ -1199,7 +1304,9 @@
       "get": {
         "operationId": "exports.assignments",
         "summary": "Export judge assignments as CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1229,11 +1336,13 @@
         }
       }
     },
-    "/events/{eventId}/imports/scores": {
+    "/events/{eventId}/imports/assignments": {
       "post": {
-        "operationId": "exports.importScores",
-        "summary": "Bulk import scores from CSV",
-        "tags": ["Exports"],
+        "operationId": "exports.importAssignments",
+        "summary": "Bulk import judge assignments from CSV",
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1260,7 +1369,68 @@
                     "minLength": 1
                   }
                 },
-                "required": ["csv"]
+                "required": [
+                  "csv"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {},
+                    {
+                      "not": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}/imports/scores": {
+      "post": {
+        "operationId": "exports.importScores",
+        "summary": "Bulk import scores from CSV",
+        "tags": [
+          "Exports"
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "csv": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "csv"
+                ]
               }
             }
           }
@@ -1288,7 +1458,9 @@
       "post": {
         "operationId": "exports.importSubmissions",
         "summary": "Bulk import submissions from CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1315,7 +1487,68 @@
                     "minLength": 1
                   }
                 },
-                "required": ["csv"]
+                "required": [
+                  "csv"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {},
+                    {
+                      "not": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}/imports/teams": {
+      "post": {
+        "operationId": "exports.importTeams",
+        "summary": "Bulk import teams and their members from CSV",
+        "tags": [
+          "Exports"
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "csv": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "csv"
+                ]
               }
             }
           }
@@ -1343,7 +1576,9 @@
       "get": {
         "operationId": "exports.rawScores",
         "summary": "Export raw scores as CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1377,7 +1612,9 @@
       "get": {
         "operationId": "exports.results",
         "summary": "Export results as CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1411,7 +1648,9 @@
       "get": {
         "operationId": "exports.submissions",
         "summary": "Export submissions as CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1445,7 +1684,9 @@
       "get": {
         "operationId": "exports.teams",
         "summary": "Export teams as CSV",
-        "tags": ["Exports"],
+        "tags": [
+          "Exports"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1479,7 +1720,9 @@
       "get": {
         "operationId": "healthCheck",
         "summary": "Health check",
-        "tags": ["Meta"],
+        "tags": [
+          "Meta"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1503,7 +1746,9 @@
       "get": {
         "operationId": "privateData",
         "summary": "Get the current user's private data",
-        "tags": ["Meta"],
+        "tags": [
+          "Meta"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1527,7 +1772,9 @@
       "post": {
         "operationId": "prizes.create",
         "summary": "Create a prize",
-        "tags": ["Prizes"],
+        "tags": [
+          "Prizes"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1573,7 +1820,9 @@
                     "maxLength": 100
                   }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -1599,7 +1848,9 @@
       "get": {
         "operationId": "prizes.list",
         "summary": "List prizes for an event",
-        "tags": ["Prizes"],
+        "tags": [
+          "Prizes"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1633,7 +1884,9 @@
       "delete": {
         "operationId": "prizes.delete",
         "summary": "Delete a prize",
-        "tags": ["Prizes"],
+        "tags": [
+          "Prizes"
+        ],
         "parameters": [
           {
             "name": "prizeId",
@@ -1667,7 +1920,9 @@
       "post": {
         "operationId": "results.compute",
         "summary": "Compute and store results for an event",
-        "tags": ["Results"],
+        "tags": [
+          "Results"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1696,7 +1951,9 @@
                     "default": true
                   }
                 },
-                "required": ["rubricId"]
+                "required": [
+                  "rubricId"
+                ]
               }
             }
           }
@@ -1724,7 +1981,9 @@
       "get": {
         "operationId": "results.getAdmin",
         "summary": "Get full results for an event",
-        "tags": ["Results"],
+        "tags": [
+          "Results"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1767,7 +2026,9 @@
       "get": {
         "operationId": "results.getPublished",
         "summary": "Get published results for an event",
-        "tags": ["Results"],
+        "tags": [
+          "Results"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1834,7 +2095,9 @@
       "post": {
         "operationId": "rubrics.create",
         "summary": "Create a rubric",
-        "tags": ["Rubrics"],
+        "tags": [
+          "Rubrics"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1892,7 +2155,10 @@
                           "maximum": 100
                         }
                       },
-                      "required": ["name", "weight"]
+                      "required": [
+                        "name",
+                        "weight"
+                      ]
                     }
                   },
                   "description": {
@@ -1912,7 +2178,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["criteria", "name"]
+                "required": [
+                  "criteria",
+                  "name"
+                ]
               }
             }
           }
@@ -1938,7 +2207,9 @@
       "get": {
         "operationId": "rubrics.listByEvent",
         "summary": "List rubrics for an event",
-        "tags": ["Rubrics"],
+        "tags": [
+          "Rubrics"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -1972,7 +2243,9 @@
       "get": {
         "operationId": "rubrics.get",
         "summary": "Get a rubric with its criteria",
-        "tags": ["Rubrics"],
+        "tags": [
+          "Rubrics"
+        ],
         "parameters": [
           {
             "name": "rubricId",
@@ -2006,7 +2279,9 @@
       "get": {
         "operationId": "scoring.allScores",
         "summary": "Get all scores for an event",
-        "tags": ["Scoring"],
+        "tags": [
+          "Scoring"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2040,7 +2315,9 @@
       "get": {
         "operationId": "scoring.getMyScore",
         "summary": "Get my score for an assignment",
-        "tags": ["Scoring"],
+        "tags": [
+          "Scoring"
+        ],
         "parameters": [
           {
             "name": "assignmentId",
@@ -2072,7 +2349,9 @@
       "put": {
         "operationId": "scoring.submit",
         "summary": "Submit a score for an assignment",
-        "tags": ["Scoring"],
+        "tags": [
+          "Scoring"
+        ],
         "parameters": [
           {
             "name": "assignmentId",
@@ -2102,7 +2381,10 @@
                           "type": "number"
                         }
                       },
-                      "required": ["criterionId", "score"]
+                      "required": [
+                        "criterionId",
+                        "score"
+                      ]
                     }
                   },
                   "feedback": {
@@ -2113,7 +2395,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["criterionScores", "rubricId"]
+                "required": [
+                  "criterionScores",
+                  "rubricId"
+                ]
               }
             }
           }
@@ -2141,7 +2426,9 @@
       "post": {
         "operationId": "scoring.lockScores",
         "summary": "Lock scores for an event",
-        "tags": ["Scoring"],
+        "tags": [
+          "Scoring"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2175,7 +2462,9 @@
       "post": {
         "operationId": "submissions.create",
         "summary": "Create a draft submission",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2196,7 +2485,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["answer", "questionId"]
+                      "required": [
+                        "answer",
+                        "questionId"
+                      ]
                     },
                     "default": []
                   },
@@ -2257,7 +2549,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["name", "eventId"]
+                "required": [
+                  "name",
+                  "eventId"
+                ]
               }
             }
           }
@@ -2285,7 +2580,9 @@
       "post": {
         "operationId": "submissions.disqualify",
         "summary": "Disqualify a submission",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -2335,7 +2632,9 @@
       "get": {
         "operationId": "submissions.gallery",
         "summary": "Public gallery of submitted projects",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2382,7 +2681,11 @@
             "name": "sortBy",
             "in": "query",
             "schema": {
-              "enum": ["recent", "name", "random"],
+              "enum": [
+                "recent",
+                "name",
+                "random"
+              ],
               "type": "string",
               "default": "recent"
             },
@@ -2431,7 +2734,9 @@
       "get": {
         "operationId": "submissions.get",
         "summary": "Get a single submission",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -2463,7 +2768,9 @@
       "patch": {
         "operationId": "submissions.update",
         "summary": "Update a draft submission",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -2494,7 +2801,10 @@
                           "type": "string"
                         }
                       },
-                      "required": ["answer", "questionId"]
+                      "required": [
+                        "answer",
+                        "questionId"
+                      ]
                     },
                     "default": []
                   },
@@ -2576,7 +2886,9 @@
       "get": {
         "operationId": "submissions.mySubmissions",
         "summary": "Get my submissions",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2611,7 +2923,9 @@
       "post": {
         "operationId": "submissions.submit",
         "summary": "Submit a draft submission",
-        "tags": ["Submissions"],
+        "tags": [
+          "Submissions"
+        ],
         "parameters": [
           {
             "name": "submissionId",
@@ -2645,7 +2959,9 @@
       "post": {
         "operationId": "teams.acceptInvitation",
         "summary": "Accept a team invitation by token",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2657,7 +2973,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["token"]
+                "required": [
+                  "token"
+                ]
               }
             }
           }
@@ -2685,7 +3003,9 @@
       "post": {
         "operationId": "teams.create",
         "summary": "Create a team for an event",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2713,7 +3033,9 @@
                     "maxLength": 80
                   }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -2739,7 +3061,9 @@
       "get": {
         "operationId": "teams.listByEvent",
         "summary": "List teams for an event",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2773,7 +3097,9 @@
       "post": {
         "operationId": "teams.createInvitation",
         "summary": "Create an invitation link for a team",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "teamId",
@@ -2823,7 +3149,9 @@
       "get": {
         "operationId": "teams.get",
         "summary": "Get team details with member count",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "teamId",
@@ -2855,7 +3183,9 @@
       "patch": {
         "operationId": "teams.update",
         "summary": "Update team name/description",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "teamId",
@@ -2910,7 +3240,9 @@
       "post": {
         "operationId": "teams.leave",
         "summary": "Leave a team",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "teamId",
@@ -2944,7 +3276,9 @@
       "get": {
         "operationId": "teams.myTeam",
         "summary": "Get my team for an event",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -2978,7 +3312,9 @@
       "delete": {
         "operationId": "teams.removeMember",
         "summary": "Remove a member from a team",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "teamId",
@@ -3020,7 +3356,9 @@
       "post": {
         "operationId": "teams.revokeInvitation",
         "summary": "Revoke a team invitation",
-        "tags": ["Teams"],
+        "tags": [
+          "Teams"
+        ],
         "parameters": [
           {
             "name": "invitationId",
@@ -3054,7 +3392,9 @@
       "post": {
         "operationId": "tracks.create",
         "summary": "Create a track",
-        "tags": ["Tracks"],
+        "tags": [
+          "Tracks"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3094,7 +3434,9 @@
                     "default": 0
                   }
                 },
-                "required": ["name"]
+                "required": [
+                  "name"
+                ]
               }
             }
           }
@@ -3120,7 +3462,9 @@
       "get": {
         "operationId": "tracks.list",
         "summary": "List tracks for an event",
-        "tags": ["Tracks"],
+        "tags": [
+          "Tracks"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3154,7 +3498,9 @@
       "delete": {
         "operationId": "tracks.delete",
         "summary": "Delete a track",
-        "tags": ["Tracks"],
+        "tags": [
+          "Tracks"
+        ],
         "parameters": [
           {
             "name": "trackId",
@@ -3186,7 +3532,9 @@
       "patch": {
         "operationId": "tracks.update",
         "summary": "Update a track",
-        "tags": ["Tracks"],
+        "tags": [
+          "Tracks"
+        ],
         "parameters": [
           {
             "name": "trackId",
@@ -3259,7 +3607,9 @@
       "get": {
         "operationId": "voting.counts",
         "summary": "Get vote counts for an event",
-        "tags": ["Voting"],
+        "tags": [
+          "Voting"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3300,7 +3650,9 @@
       "post": {
         "operationId": "voting.vote",
         "summary": "Cast a vote",
-        "tags": ["Voting"],
+        "tags": [
+          "Voting"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3322,7 +3674,9 @@
                     "type": "string"
                   }
                 },
-                "required": ["submissionId"]
+                "required": [
+                  "submissionId"
+                ]
               }
             }
           }
@@ -3350,7 +3704,9 @@
       "get": {
         "operationId": "voting.myVotes",
         "summary": "Get my votes for an event",
-        "tags": ["Voting"],
+        "tags": [
+          "Voting"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3384,7 +3740,9 @@
       "delete": {
         "operationId": "voting.unvote",
         "summary": "Remove a vote",
-        "tags": ["Voting"],
+        "tags": [
+          "Voting"
+        ],
         "parameters": [
           {
             "name": "eventId",
@@ -3426,7 +3784,9 @@
       "post": {
         "operationId": "voting.verifyVoting",
         "summary": "Verify email for gated voting",
-        "tags": ["Voting"],
+        "tags": [
+          "Voting"
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -3442,7 +3802,10 @@
                     "type": "string"
                   }
                 },
-                "required": ["code", "verificationId"]
+                "required": [
+                  "code",
+                  "verificationId"
+                ]
               }
             }
           }

@@ -642,4 +642,56 @@ describe("Judging Engine", () => {
       expect(results.length).toBeGreaterThan(0);
     });
   });
+  it("gives every submission the same review depth, not just the early ones", async () => {
+    // The greedy version filled judges one at a time, so the first projects
+    // collected every judge and the last collected none. On the fixture set that
+    // meant 2 to 5 reviews per project and a judge load of 1 to 11.
+    const { ev, judgeA, judgeB, org } = await setupJudgingScenario();
+    const judgeIds = [judgeA.id, judgeB.id];
+
+    const result = (await rpcOk(
+      app,
+      "assignments.batchAssign",
+      {
+        eventId: ev.id,
+        judgeIds,
+        reviewsPerSubmission: 3,
+      },
+      org.cookie
+    )) as {
+      assigned: number;
+      details: {
+        assigned: Array<{ judgeId: string; submissionId: string }>;
+        skipped: Array<{
+          judgeId: string;
+          reason: string;
+          submissionId: string;
+        }>;
+      };
+    };
+
+    expect(result.assigned).toBeGreaterThan(0);
+
+    // Every submission that received a review has the same depth, so no project
+    // is starved by submission order.
+    const perSubmission = new Map<string, number>();
+    for (const row of result.details.assigned) {
+      perSubmission.set(
+        row.submissionId,
+        (perSubmission.get(row.submissionId) ?? 0) + 1
+      );
+    }
+    const depths = [...perSubmission.values()];
+    expect(depths.length).toBeGreaterThan(0);
+    expect(Math.max(...depths) - Math.min(...depths)).toBeLessThanOrEqual(1);
+
+    // Judge load is spread rather than stacked on the first judges.
+    const perJudge = new Map<string, number>();
+    for (const row of result.details.assigned) {
+      perJudge.set(row.judgeId, (perJudge.get(row.judgeId) ?? 0) + 1);
+    }
+    const loads = [...perJudge.values()];
+    expect(loads.length).toBeGreaterThan(1);
+    expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(1);
+  });
 });

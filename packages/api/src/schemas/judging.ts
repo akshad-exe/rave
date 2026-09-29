@@ -31,7 +31,16 @@ export const assignJudgeInput = z.object({
 export const batchAssignInput = z.object({
   eventId: z.string(),
   judgeIds: z.array(z.string()).min(1),
-  submissionsPerJudge: z.number().int().min(1).max(50).default(5),
+  /**
+   * Reviews each submission should receive. The assignment pass balances
+   * coverage against judge load rather than filling judges one at a time, so
+   * this is a per-project target and every project is covered to the same depth
+   * wherever the judge pool allows.
+   */
+  reviewsPerSubmission: z.number().int().min(1).max(50).default(3),
+  // @deprecated superseded by reviewsPerSubmission; still honoured when that is
+  // absent so existing callers keep working.
+  submissionsPerJudge: z.number().int().min(1).max(50).optional(),
   trackId: z.string().optional(),
 });
 

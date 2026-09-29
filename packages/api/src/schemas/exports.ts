@@ -29,3 +29,11 @@ export const importSubmissionsInput = importBase.extend({
 export const importScoresInput = importBase.extend({
   csv: z.string().min(1),
 });
+
+export const importTeamsInput = importBase.extend({
+  csv: z.string().min(1),
+});
+
+export const importAssignmentsInput = importBase.extend({
+  csv: z.string().min(1),
+});

@@ -27,6 +27,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@rave/ui/components/empty";
+import { Input } from "@rave/ui/components/input";
+import { Label } from "@rave/ui/components/label";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { Textarea } from "@rave/ui/components/textarea";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,7 +48,8 @@ import {
   VideoIcon,
 } from "lucide-react";
 import type * as React from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { formatRelativeTime } from "@/lib/utils";
 import { orpc } from "@/utils/orpc";
@@ -103,6 +106,76 @@ function SubmissionDetailComponent() {
   const { data: session } = authClient.useSession();
 
   // Create comment mutation
+  // Owner actions on a draft. The create page can make a draft, but without
+  // these the participant has no way to finish the job, and the draft-to-
+  // submitted transition is half the T1 submission requirement.
+  const submitMutation = useMutation(
+    orpc.submissions.submit.mutationOptions({
+      onSuccess: () => {
+        toast.success("Submitted for review");
+        queryClient.invalidateQueries({
+          queryKey: ["submissions", "get", id],
+        });
+      },
+      onError: (error: unknown) => {
+        toast.error(
+          error instanceof Error ? error.message : "Could not submit"
+        );
+      },
+    })
+  );
+
+  const updateMutation = useMutation(
+    orpc.submissions.update.mutationOptions({
+      onSuccess: () => {
+        toast.success("Draft saved");
+        queryClient.invalidateQueries({
+          queryKey: ["submissions", "get", id],
+        });
+      },
+      onError: (error: unknown) => {
+        toast.error(error instanceof Error ? error.message : "Could not save");
+      },
+    })
+  );
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    description: "",
+    name: "",
+    tagline: "",
+  });
+
+  // The query resolves after first render, so seed the editable copy once the
+  // submission arrives rather than reading it during initial state.
+  useEffect(() => {
+    if (submission) {
+      setDraft({
+        description: submission.description ?? "",
+        name: submission.name,
+        tagline: submission.tagline ?? "",
+      });
+    }
+  }, [submission]);
+
+  const handleSubmitForReview = useCallback(() => {
+    submitMutation.mutate({ submissionId: id });
+  }, [submitMutation, id]);
+
+  const toggleEdit = useCallback(() => {
+    setIsEditing((open) => !open);
+  }, []);
+
+  const handleDraftChange = useCallback(
+    (field: "description" | "name" | "tagline", value: string) => {
+      setDraft((prev) => ({ ...prev, [field]: value }));
+    },
+    []
+  );
+  const handleSaveDraft = useCallback(() => {
+    updateMutation.mutate({ submissionId: id, ...draft });
+  }, [draft, id, updateMutation]);
+
   const createCommentMutation = useMutation(
     orpc.comments.create.mutationOptions({
       onSuccess: () => {
@@ -201,6 +274,8 @@ function SubmissionDetailComponent() {
 
   const config = getStatusConfig(submission.status);
   const Icon = config.icon;
+  const isOwner = session?.user?.id === submission.submitterId;
+  const isDraft = submission.status === "draft";
 
   // Resolved with early returns rather than a nested ternary.
   const commentList = (() => {
@@ -467,6 +542,19 @@ function SubmissionDetailComponent() {
           </section>
         ) : null}
 
+        <OwnerActions
+          draft={draft}
+          isDraft={isDraft}
+          isEditing={isEditing}
+          isOwner={isOwner}
+          onDraftChange={handleDraftChange}
+          onSaveDraft={handleSaveDraft}
+          onSubmitForReview={handleSubmitForReview}
+          onToggleEdit={toggleEdit}
+          saving={updateMutation.isPending}
+          submitting={submitMutation.isPending}
+        />
+
         <CommentsSection
           commentCount={commentsData?.length ?? 0}
           commentList={commentList}
@@ -500,6 +588,119 @@ function SubmissionDetailComponent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface OwnerActionsProps {
+  draft: { description: string; name: string; tagline: string };
+  isDraft: boolean;
+  isEditing: boolean;
+  isOwner: boolean;
+  onDraftChange: (
+    field: "description" | "name" | "tagline",
+    value: string
+  ) => void;
+  onSaveDraft: () => void;
+  onSubmitForReview: () => void;
+  onToggleEdit: () => void;
+  saving: boolean;
+  submitting: boolean;
+}
+
+// Extracted so SubmissionDetailComponent stays inside the cognitive-complexity
+// budget, and so the draft lifecycle reads as one unit.
+function OwnerActions({
+  draft,
+  isDraft,
+  isEditing,
+  isOwner,
+  onDraftChange,
+  onSaveDraft,
+  onSubmitForReview,
+  onToggleEdit,
+  saving,
+  submitting,
+}: OwnerActionsProps) {
+  const handleNameChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onDraftChange("name", e.target.value);
+    },
+    [onDraftChange]
+  );
+  const handleTaglineChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onDraftChange("tagline", e.target.value);
+    },
+    [onDraftChange]
+  );
+  const handleDescriptionChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onDraftChange("description", e.target.value);
+    },
+    [onDraftChange]
+  );
+
+  if (!(isOwner && isDraft)) {
+    return null;
+  }
+
+  return (
+    <div className="mt-6 rounded-lg border border-border p-4">
+      {isEditing ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="draft-name">Name</Label>
+            <Input
+              id="draft-name"
+              onChange={handleNameChange}
+              value={draft.name}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="draft-tagline">Tagline</Label>
+            <Input
+              id="draft-tagline"
+              onChange={handleTaglineChange}
+              value={draft.tagline}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="draft-description">Description</Label>
+            <Textarea
+              id="draft-description"
+              onChange={handleDescriptionChange}
+              rows={3}
+              value={draft.description}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button disabled={saving} onClick={onSaveDraft} type="button">
+              {saving ? "Saving..." : "Save draft"}
+            </Button>
+            <Button onClick={onToggleEdit} type="button" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            disabled={submitting}
+            onClick={onSubmitForReview}
+            type="button"
+          >
+            {submitting ? "Submitting..." : "Submit for review"}
+          </Button>
+          <Button onClick={onToggleEdit} type="button" variant="outline">
+            Edit draft
+          </Button>
+          <p className="text-muted-foreground text-sm">
+            Drafts are private to you and stay out of the gallery until they are
+            submitted.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

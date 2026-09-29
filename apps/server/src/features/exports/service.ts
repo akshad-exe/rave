@@ -16,6 +16,67 @@ import { parseCSVRecordsWithRows, toCSV } from "../../lib/csv";
 
 type ImportSummary = import("zod").infer<typeof exportSchemas.importResult>;
 
+const ASSIGNMENT_STATUSES = ["pending", "in_progress", "completed"] as const;
+
+type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
+
+function toAssignmentStatus(value: string): AssignmentStatus {
+  const candidate = value.trim().toLowerCase();
+  return (
+    ASSIGNMENT_STATUSES.find((status) => status === candidate) ?? "pending"
+  );
+}
+
+async function teamExists(ctx: ServiceContext, id: string) {
+  const rows = await ctx.db
+    .select({ id: team.id })
+    .from(team)
+    .where(eq(team.id, id))
+    .limit(1);
+  return rows.length > 0;
+}
+
+async function assignmentExists(ctx: ServiceContext, id: string) {
+  const rows = await ctx.db
+    .select({ id: judgeAssignment.id })
+    .from(judgeAssignment)
+    .where(eq(judgeAssignment.id, id))
+    .limit(1);
+  return rows.length > 0;
+}
+
+function validateTeamRow(
+  record: Record<string, string>,
+  row: number
+): RowError | null {
+  const problems: string[] = [];
+  if (!field(record, "team_name")) {
+    problems.push("team_name is required");
+  }
+  if (!(field(record, "owner_id") || field(record, "member_user_id"))) {
+    problems.push("owner_id or member_user_id is required");
+  }
+  return problems.length > 0
+    ? { field: "row", message: problems.join("; "), row }
+    : null;
+}
+
+function validateAssignmentRow(
+  record: Record<string, string>,
+  row: number
+): RowError | null {
+  const problems: string[] = [];
+  if (!field(record, "judge_id")) {
+    problems.push("judge_id is required");
+  }
+  if (!field(record, "submission_id")) {
+    problems.push("submission_id is required");
+  }
+  return problems.length > 0
+    ? { field: "row", message: problems.join("; "), row }
+    : null;
+}
+
 const SUBMISSION_STATUSES = ["draft", "submitted", "locked"] as const;
 
 /**
@@ -276,6 +337,71 @@ export const exportsService: ExportsService = {
     return { csv: toCSV(headers, csvRows) };
   },
 
+  async importAssignments(ctx: ServiceContext, input) {
+    await assertEventOrganizer(ctx, input.eventId);
+
+    const summary: ImportSummary = {
+      created: 0,
+      errors: [],
+      skipped: 0,
+      updated: 0,
+    };
+
+    for (const { record, row } of parseCSVRecordsWithRows(input.csv)) {
+      const problem = validateAssignmentRow(record, row);
+      if (problem) {
+        summary.errors.push(problem);
+        summary.skipped += 1;
+        continue;
+      }
+
+      if (input.dryRun) {
+        const existingId = field(record, "assignment_id");
+        // biome-ignore lint/performance/noAwaitInLoops: per-row existence check, kept sequential so errors are reported in spreadsheet order
+        if (existingId && (await assignmentExists(ctx, existingId))) {
+          summary.updated += 1;
+        } else {
+          summary.created += 1;
+        }
+        continue;
+      }
+
+      try {
+        const values = {
+          eventId: input.eventId,
+          judgeId: field(record, "judge_id"),
+          status: toAssignmentStatus(field(record, "status")),
+          submissionId: field(record, "submission_id"),
+          trackId: field(record, "track_id") || undefined,
+        };
+        const assignmentId = field(record, "assignment_id");
+
+        if (assignmentId && (await assignmentExists(ctx, assignmentId))) {
+          await ctx.db
+            .update(judgeAssignment)
+            .set(values)
+            .where(eq(judgeAssignment.id, assignmentId));
+          summary.updated += 1;
+        } else {
+          await ctx.db.insert(judgeAssignment).values({
+            ...values,
+            id: assignmentId || generateId("asg"),
+          });
+          summary.created += 1;
+        }
+      } catch (error) {
+        summary.errors.push({
+          field: "row",
+          message: error instanceof Error ? error.message : "insert failed",
+          row,
+        });
+        summary.skipped += 1;
+      }
+    }
+
+    return summary;
+  },
+
   async importScores(ctx: ServiceContext, input) {
     await assertEventOrganizer(ctx, input.eventId);
 
@@ -350,6 +476,92 @@ export const exportsService: ExportsService = {
       }
 
       await writeSubmissionRow(ctx, input.eventId, record, summary, row);
+    }
+
+    return summary;
+  },
+  async importTeams(ctx: ServiceContext, input) {
+    await assertEventOrganizer(ctx, input.eventId);
+
+    const summary: ImportSummary = {
+      created: 0,
+      errors: [],
+      skipped: 0,
+      updated: 0,
+    };
+
+    for (const { record, row } of parseCSVRecordsWithRows(input.csv)) {
+      const problem = validateTeamRow(record, row);
+      if (problem) {
+        summary.errors.push(problem);
+        summary.skipped += 1;
+        continue;
+      }
+
+      const teamId = field(record, "team_id");
+      const memberUserId = field(record, "member_user_id");
+
+      if (input.dryRun) {
+        // biome-ignore lint/performance/noAwaitInLoops: per-row existence check, kept sequential so errors are reported in spreadsheet order
+        if (teamId && (await teamExists(ctx, teamId))) {
+          summary.updated += 1;
+        } else {
+          summary.created += 1;
+        }
+        continue;
+      }
+
+      try {
+        const teamName = field(record, "team_name");
+        let resolvedTeamId = teamId;
+        if (resolvedTeamId) {
+          await ctx.db
+            .update(team)
+            .set({ name: teamName })
+            .where(eq(team.id, resolvedTeamId));
+          summary.updated += 1;
+        } else {
+          // A roster usually lists members without repeating the team id, so
+          // fall back to matching on name within this event. Without this every
+          // member row past the first would create another team.
+          const [existing] = await ctx.db
+            .select({ id: team.id })
+            .from(team)
+            .where(
+              and(eq(team.eventId, input.eventId), eq(team.name, teamName))
+            )
+            .limit(1);
+
+          if (existing) {
+            resolvedTeamId = existing.id;
+          } else {
+            resolvedTeamId = generateId("team");
+            await ctx.db.insert(team).values({
+              eventId: input.eventId,
+              id: resolvedTeamId,
+              name: teamName,
+              ownerId: field(record, "owner_id") || memberUserId,
+            });
+            summary.created += 1;
+          }
+        }
+
+        // Membership is additive and idempotent on the (team, user) pair, so
+        // re-importing a roster does not duplicate rows.
+        if (memberUserId) {
+          await ctx.db
+            .insert(teamMember)
+            .values({ teamId: resolvedTeamId, userId: memberUserId })
+            .onConflictDoNothing();
+        }
+      } catch (error) {
+        summary.errors.push({
+          field: "row",
+          message: error instanceof Error ? error.message : "insert failed",
+          row,
+        });
+        summary.skipped += 1;
+      }
     }
 
     return summary;
