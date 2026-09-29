@@ -1,5 +1,6 @@
 import type { ServiceContext } from "@rave/api/context";
 import type { ExportsService } from "@rave/api/contract";
+import { parseCSVRecordsWithRows, toCSV } from "@rave/api/csv";
 import { generateId } from "@rave/api/id";
 import type * as exportSchemas from "@rave/api/schemas/exports";
 import {
@@ -12,7 +13,6 @@ import {
 } from "@rave/db";
 import { and, eq } from "drizzle-orm";
 import { assertEventOrganizer } from "../../lib/assert";
-import { parseCSVRecordsWithRows, toCSV } from "../../lib/csv";
 
 type ImportSummary = import("zod").infer<typeof exportSchemas.importResult>;
 

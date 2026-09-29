@@ -1,6 +1,5 @@
+import { parseCSV, parseCSVRecords, toCSV } from "@rave/api/csv";
 import { describe, expect, it } from "vitest";
-
-import { parseCSV, parseCSVRecords, toCSV } from "../../lib/csv";
 import {
   closeTestApp,
   createEvent,
