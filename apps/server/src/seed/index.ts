@@ -106,7 +106,7 @@ export function renderDogfoodToml(
 base_url = "${baseUrl}"
 
 [tiers]
-claimed = ["T1", "T2"]
+claimed = ["T1", "T2", "T3"]
 pitch = "Hackathon submission and judging platform: teams submit projects, organizers assign judges, judges score against a weighted rubric without ever seeing each other's work."
 
 [auth]

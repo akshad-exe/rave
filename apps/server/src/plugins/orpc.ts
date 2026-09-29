@@ -12,7 +12,7 @@ import { logHandlerError } from "../lib/logger";
 
 // Tag group metadata for the Scalar reference UI. `x-tagGroups` is a
 // widely-supported vendor extension (not part of the OpenAPI 3.1 types).
-const tagGroupSpec = {
+export const OPENAPI_SPEC_OPTIONS = {
   "x-tagGroups": [
     {
       name: "Admin & Operations",
@@ -50,7 +50,7 @@ export function registerOrpc(fastify: FastifyInstance): void {
     plugins: [
       new OpenAPIReferencePlugin({
         schemaConverters: [new ZodToJsonSchemaConverter()],
-        specGenerateOptions: tagGroupSpec,
+        specGenerateOptions: OPENAPI_SPEC_OPTIONS,
       }),
     ],
   });

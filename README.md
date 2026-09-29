@@ -30,6 +30,28 @@ No cloud account, hosted database, authentication provider, or external API is
 required. Migrations run automatically on server boot, so the stack is usable
 against a brand-new volume.
 
+### The API
+
+Every procedure is served over `POST /rpc/<router>/<procedure>` with an oRPC JSON body
+(`{"json": <input>}`), and there is an interactive reference at
+<http://localhost:3000/api-reference>.
+
+The machine-readable specification is committed at [`docs/openapi.json`](docs/openapi.json) —
+57 paths, 68 operations. It is generated from the same router and the same options as the
+served reference, so the two cannot disagree:
+
+```bash
+bun run openapi     # regenerate docs/openapi.json
+```
+
+A test asserts the committed file is valid, covers every router group, tags and summarises
+every operation, and includes the bulk-import endpoints — so adding a procedure without
+regenerating fails the suite rather than shipping a stale document.
+
+Each operation declares a REST-style method and path, which is what the spec publishes.
+Those paths are the intended REST shape; the runtime serves RPC framing. See
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why.
+
 ### The secret, and why it lives in one file
 
 `bun run setup` writes a random 48-byte `BETTER_AUTH_SECRET` into

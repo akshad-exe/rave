@@ -5,15 +5,15 @@
 base_url = "http://localhost:3000"
 
 [tiers]
-claimed = ["T1", "T2"]
+claimed = ["T1", "T2", "T3"]
 pitch = "Hackathon submission and judging platform: teams submit projects, organizers assign judges, judges score against a weighted rubric without ever seeing each other's work."
 
 [auth]
 # Cookies issued by the seed. The checker attaches these instead of logging in.
-organizer   = "Cookie: better-auth.session_token=Z9g4Tn5zEpbdJOgsuixTUseOXRrBIAya.FA%2BFKKQsPVEK2Ox9BhPPRtf72S61VGYzhY0ed3lqKlY%3D"
-judge_a     = "Cookie: better-auth.session_token=5Zg657QtP5jyGs21c0y6OjrdDxz4sDEJ.EHeBxkfyEEyehTb2jYJL2FxOdO2NSXbn%2FQrebuONopo%3D"
-judge_b     = "Cookie: better-auth.session_token=237085KohZVDGF9HHroIFXF9G9lbuyit.onxsy1gU1tIewxbevNouPvVqTYJcSbPkahMxTibOw2g%3D"
-participant = "Cookie: better-auth.session_token=3Q0FJQPSv98Qkwh6B4BMORX1k2pL99tk.2zjsd221UtHk9BGZbnqZ2Na4Y6sZnXVfPmMO49hYE2o%3D"
+organizer   = "Cookie: better-auth.session_token=xCKBHs5kRVAO3FHEhuSx8vczRG8wTfuJ.h4mmO5ZYPVSSDF34G5P6H1HgZz0bS6xJwAq9IXH%2Fl1c%3D"
+judge_a     = "Cookie: better-auth.session_token=JZLMzau3gQleBImc30GFB2yFR5fVZbOI.1gXeIJHMr7tU7XkgwQbhqRpgNz6VoYuLuTTEMWOMPaE%3D"
+judge_b     = "Cookie: better-auth.session_token=D7aX88KC84hGtklxxFGm6WUtgLSliKi8.HYkC3cs5vTi2BdOpTibfOBKZqTuSZidaG9L7mGro9jo%3D"
+participant = "Cookie: better-auth.session_token=U8kIELJlDbJ0X3bD3gfy6yLlVRKH67TS.wWTO4XWSUMTz04INv9QupFjQiNN%2BOb9AhGPiagkgjNE%3D"
 
 [routes]
 gallery      = "/gallery"
@@ -22,3 +22,5 @@ judge_scores = "/judging/scores"
 # The URL that returns judge_a's scores. The checker visits it as judge_b.
 peer_scores  = "/judging/scores?judge=usr_jdg_01"
 csv_export   = "/exports/scores.csv"
+# The server-rendered, no-JavaScript ballot for community voting.
+ballot       = "/vote/evt_01"

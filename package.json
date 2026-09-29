@@ -51,6 +51,7 @@
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "fix": "ultracite fix",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "openapi": "cd apps/server && bun run scripts/generate-openapi.ts",
     "seed:config": "cd apps/server && bun run seed:config",
     "setup": "node scripts/setup-env.mjs"
   },

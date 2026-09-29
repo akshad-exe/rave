@@ -280,7 +280,7 @@ describe("generated .dogfood.toml", () => {
     }
     expect(toml).toContain(peerScoresRoute(seeded.accounts.judgeA.id));
     expect(toml).toContain(`${PORTAL_ROUTES.vote}/${seeded.eventId}`);
-    expect(toml).toContain('claimed = ["T1", "T2"]');
+    expect(toml).toContain('claimed = ["T1", "T2", "T3"]');
     expect(toml).toContain(seeded.credentials.judgeA);
   });
 });
