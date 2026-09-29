@@ -8,10 +8,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@rave/ui/components/card";
-import { Checkbox } from "@rave/ui/components/checkbox";
+import {
+  Combobox,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+} from "@rave/ui/components/combobox";
 import { Input } from "@rave/ui/components/input";
 import { Label } from "@rave/ui/components/label";
 import { Progress } from "@rave/ui/components/progress";
+import { ScrollArea } from "@rave/ui/components/scroll-area";
 import { Separator } from "@rave/ui/components/separator";
 import { Skeleton } from "@rave/ui/components/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -238,9 +247,11 @@ function JudgeProgressTable({
   rows: [string, JudgeProgress][];
 }) {
   return (
-    <div className="overflow-x-auto">
+    // 30 judges in the fixture and no upper bound in the schema, so cap the
+    // height and scroll rather than pushing the batch-assign panel off screen.
+    <ScrollArea className="max-h-96">
       <table className="w-full text-sm">
-        <thead>
+        <thead className="sticky top-0 z-10 bg-background">
           <tr className="border-border border-b text-left text-muted-foreground text-xs">
             <th className="pb-2 font-medium" scope="col">
               Judge
@@ -264,7 +275,7 @@ function JudgeProgressTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollArea>
   );
 }
 
@@ -317,10 +328,8 @@ function BatchAssignSection({
     orpc.assignments.batchAssign.mutationOptions()
   );
 
-  const toggleJudge = useCallback((judgeId: string, checked: boolean) => {
-    setSelected((prev) =>
-      checked ? [...prev, judgeId] : prev.filter((id) => id !== judgeId)
-    );
+  const handleSelectionChange = useCallback((next: string[] | null) => {
+    setSelected(next ?? []);
   }, []);
 
   const handleReviewsChange = useCallback(
@@ -399,7 +408,7 @@ function BatchAssignSection({
         ) : (
           <JudgePoolList
             judges={judges}
-            onToggle={toggleJudge}
+            onChange={handleSelectionChange}
             selected={selected}
           />
         )}
@@ -439,71 +448,54 @@ function BatchAssignSection({
 function JudgePoolList({
   judges,
   selected,
-  onToggle,
+  onChange,
 }: {
   judges: JudgePoolEntry[];
+  onChange: (judgeIds: string[]) => void;
   selected: string[];
-  onToggle: (judgeId: string, checked: boolean) => void;
 }) {
+  const items = useMemo(
+    () =>
+      judges.map((judge) => ({
+        label: `${judge.name} · ${judge.assignedCount} assigned`,
+        value: judge.id,
+      })),
+    [judges]
+  );
+
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-2 font-medium text-foreground text-sm">
+    <div className="space-y-2">
+      <Label className="font-medium text-foreground text-sm">
         Judge pool
         <span className="ml-2 font-normal text-muted-foreground">
-          ({selected.length} of {judges.length} selected)
+          {selected.length} of {judges.length} selected
         </span>
-      </legend>
-      {judges.map((judge) => (
-        <JudgePoolRow
-          checked={selected.includes(judge.id)}
-          judge={judge}
-          key={judge.id}
-          onToggle={onToggle}
-        />
-      ))}
-    </fieldset>
-  );
-}
-
-function JudgePoolRow({
-  judge,
-  checked,
-  onToggle,
-}: {
-  checked: boolean;
-  judge: JudgePoolEntry;
-  onToggle: (judgeId: string, checked: boolean) => void;
-}) {
-  const handleChange = useCallback(
-    (next: boolean) => {
-      onToggle(judge.id, next);
-    },
-    [judge.id, onToggle]
-  );
-  return (
-    <label
-      className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border bg-background px-3.5 py-2.5 transition-colors hover:bg-muted/40"
-      htmlFor={`judge-${judge.id}`}
-    >
-      <span className="flex min-w-0 items-center gap-3">
-        <Checkbox
-          checked={checked}
-          id={`judge-${judge.id}`}
-          onCheckedChange={handleChange}
-        />
-        <span className="min-w-0">
-          <span className="block truncate font-medium text-sm">
-            {judge.name}
-          </span>
-          <span className="block truncate text-muted-foreground text-xs">
-            {judge.email}
-          </span>
-        </span>
-      </span>
-      <Badge className="shrink-0" variant="subtle">
-        {judge.assignedCount} assigned
-      </Badge>
-    </label>
+      </Label>
+      <Combobox
+        items={items}
+        multiple
+        onValueChange={onChange}
+        value={selected}
+      >
+        <ComboboxChips>
+          <ComboboxChipsInput placeholder="Search judges by name…" />
+        </ComboboxChips>
+        <ComboboxContent>
+          <ComboboxEmpty>No judge matches that search.</ComboboxEmpty>
+          <ComboboxList>
+            {items.map((item) => (
+              <ComboboxItem key={item.value} value={item.value}>
+                {item.label}
+              </ComboboxItem>
+            ))}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+      <p className="text-muted-foreground text-xs">
+        The batch pass balances coverage against load, so every project is
+        reviewed to the same depth wherever this pool allows.
+      </p>
+    </div>
   );
 }
 

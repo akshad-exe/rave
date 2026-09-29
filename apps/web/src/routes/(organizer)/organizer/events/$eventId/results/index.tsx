@@ -24,10 +24,10 @@ import {
   SelectTrigger,
 } from "@rave/ui/components/select";
 import { Skeleton } from "@rave/ui/components/skeleton";
+import { Switch } from "@rave/ui/components/switch";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeftIcon, LockIcon, RocketIcon } from "lucide-react";
-import type * as React from "react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { type client, orpc } from "@/utils/orpc";
@@ -220,12 +220,9 @@ function ComputeCard({
     setRubricId(value ?? "");
   }, []);
 
-  const handleNormalizationChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setUseNormalization(e.target.checked);
-    },
-    []
-  );
+  const handleNormalizationChange = useCallback((checked: boolean) => {
+    setUseNormalization(checked);
+  }, []);
 
   const handleCompute = useCallback(async () => {
     if (!selected) {
@@ -299,18 +296,19 @@ function ComputeCard({
                 </SelectContent>
               </Select>
             </div>
-            <label
-              className="flex cursor-pointer items-center gap-2 pb-2 text-sm"
-              htmlFor="use-normalization"
-            >
-              <input
+            <div className="flex items-center gap-2.5 pb-2">
+              <Switch
                 checked={useNormalization}
                 id="use-normalization"
-                onChange={handleNormalizationChange}
-                type="checkbox"
+                onCheckedChange={handleNormalizationChange}
               />
-              Normalize per judge
-            </label>
+              <label
+                className="cursor-pointer text-sm"
+                htmlFor="use-normalization"
+              >
+                Normalize per judge
+              </label>
+            </div>
             <Button
               disabled={computeMutation.isPending || !selected}
               onClick={handleCompute}

@@ -19,6 +19,7 @@ import {
 import { Input } from "@rave/ui/components/input";
 import { Label } from "@rave/ui/components/label";
 import { Separator } from "@rave/ui/components/separator";
+import { Switch } from "@rave/ui/components/switch";
 import {
   Table,
   TableBody,
@@ -373,8 +374,8 @@ function handleBooleanChange<K extends keyof EventDraft>(
   patch: <T extends keyof EventDraft>(key: T, value: EventDraft[T]) => void,
   key: K
 ) {
-  return (e: React.ChangeEvent<HTMLInputElement>) => {
-    patch(key, e.target.checked as EventDraft[K]);
+  return (checked: boolean) => {
+    patch(key, checked as EventDraft[K]);
   };
 }
 
@@ -464,22 +465,21 @@ function ToggleField({
   hint: string;
   id: string;
   label: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2.5" htmlFor={id}>
-      <input
+    <div className="flex items-start gap-2.5">
+      <Switch
         checked={checked}
-        className="mt-0.5 size-4 accent-primary"
+        className="mt-0.5"
         id={id}
-        onChange={onChange}
-        type="checkbox"
+        onCheckedChange={onChange}
       />
-      <span>
+      <label className="cursor-pointer" htmlFor={id}>
         <span className="block font-medium text-sm">{label}</span>
         <span className="block text-muted-foreground text-xs">{hint}</span>
-      </span>
-    </label>
+      </label>
+    </div>
   );
 }
 
@@ -548,6 +548,9 @@ function TracksCard({ eventId }: { eventId: string }) {
     try {
       await updateMutation.mutateAsync({
         description: editing.description ?? undefined,
+        // Empty means unlimited, which the API expresses as an explicit null
+        // rather than an omitted key.
+        maxSubmissions: editing.maxSubmissions ?? null,
         name: editing.name,
         sortOrder: editing.sortOrder,
         trackId: editing.id,
@@ -773,7 +776,9 @@ function EditTrackDialog({
         <DialogHeader>
           <DialogTitle>Rename track</DialogTitle>
           <DialogDescription>
-            Renaming does not affect projects already in this track.
+            Changing a cap does not move projects already in this track, and
+            lowering it below the current count leaves the track over its limit
+            until organizers move projects out.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-1.5">
@@ -784,6 +789,19 @@ function EditTrackDialog({
             id="edit-track-name"
             onChange={handleEditName(onChange, editing)}
             value={editing?.name ?? ""}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="block text-xs" htmlFor="edit-track-max">
+            Max submissions
+          </Label>
+          <Input
+            id="edit-track-max"
+            min={1}
+            onChange={handleEditMax(onChange, editing)}
+            placeholder="Unlimited"
+            type="number"
+            value={editing?.maxSubmissions ?? ""}
           />
         </div>
         <DialogFooter>
@@ -797,6 +815,19 @@ function EditTrackDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function handleEditMax(
+  onChange: (patch: Partial<Track>) => void,
+  editing: Track | null
+) {
+  return (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editing) {
+      return;
+    }
+    const parsed = Number.parseInt(e.target.value, 10);
+    onChange({ maxSubmissions: Number.isNaN(parsed) ? null : parsed });
+  };
 }
 
 function handleEditName(
