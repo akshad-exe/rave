@@ -1,5 +1,5 @@
 <!doctype html>
-<html class="dark" lang="en">
+<html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
@@ -21,6 +21,28 @@
       rel="stylesheet"
     >
     <link href="/favicon.svg" rel="icon" type="image/svg+xml">
+    <script>
+    "use strict";
+    // Apply the stored theme before first paint. next-themes only syncs the
+    // class on mount, so without this the page renders light, then snaps to
+    // dark for anyone who chose it. The storage key and the `system`
+    // resolution mirror what ThemeProvider is configured with in __root.tsx;
+    // change one and you must change the other.
+    (() => {
+      try {
+        const stored = localStorage.getItem("rave-theme") || "light";
+        const prefersDark = window.matchMedia(
+          "(prefers-color-scheme: dark)"
+        ).matches;
+        const dark = stored === "dark" || (stored === "system" && prefersDark);
+        document.documentElement.classList.toggle("dark", dark);
+      } catch {
+        // Private mode or a blocked storage partition: fall back to light
+        // rather than leaving the class in an unknown state.
+        document.documentElement.classList.remove("dark");
+      }
+    })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

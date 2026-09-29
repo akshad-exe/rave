@@ -47,8 +47,9 @@ function RootComponent() {
       <HeadContent />
       <ThemeProvider
         attribute="class"
-        defaultTheme="dark"
+        defaultTheme="light"
         disableTransitionOnChange
+        enableSystem
         storageKey="rave-theme"
       >
         <div className="flex min-h-screen flex-col">
