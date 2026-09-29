@@ -22,10 +22,12 @@ import {
   ArrowRightIcon,
   BarChartIcon,
   CalendarIcon,
+  DatabaseIcon,
   EditIcon,
   MoreHorizontalIcon,
   PlusIcon,
   ScaleIcon,
+  SettingsIcon,
 } from "lucide-react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -290,6 +292,24 @@ function EventRow({ event }: { event: EventListItem }) {
               >
                 <BarChartIcon className="size-4" />
                 Results
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                params={{ eventId: event.id }}
+                to="/organizer/events/$eventId/settings"
+              >
+                <SettingsIcon className="size-4" />
+                Event settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                params={{ eventId: event.id }}
+                to="/organizer/events/$eventId/data"
+              >
+                <DatabaseIcon className="size-4" />
+                Import &amp; export
               </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
