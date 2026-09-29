@@ -128,7 +128,7 @@ running deployment that is not otherwise public.
 
 **Residual risk.** Collusion between two judges who never exchange data is invisible: a quiet agreement to
 inflate a project leaves no trace in an audit log that records actions, not intent. Cross-judge normalization
-(`docs/JUDGING.md`) and the proof artifact dampen the *effect* of a biased judge on the ranking, but they cannot
+(`JUDGING.md`) and the proof artifact dampen the *effect* of a biased judge on the ranking, but they cannot
 detect a coordinated pair. **This is the most significant unmitigated threat in the system.**
 
 ---

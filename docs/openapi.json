@@ -36,7 +36,7 @@
     }
   ],
   "info": {
-    "description": "Rave — hackathon submission and judging platform. Every procedure below is reachable over POST /rpc/<router>/<procedure> with an oRPC JSON body of {\"json\": <input>}. The declared method and path below are the intended REST shape; see docs/ARCHITECTURE.md for why the runtime serves RPC framing instead.",
+    "description": "Rave — hackathon submission and judging platform. Every procedure below is reachable over POST /rpc/<router>/<procedure> with an oRPC JSON body of {\"json\": <input>}. The declared method and path below are the intended REST shape; see ARCHITECTURE.md for why the runtime serves RPC framing instead.",
     "title": "Rave API",
     "version": "1.0.0"
   },

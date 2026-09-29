@@ -32,7 +32,7 @@ Do not skip this. T1 is the floor; the spec says a submission that misses it is 
 
 Ordered by value-per-hour. Item 0.1 is the single most valuable file in this plan.
 
-### 0.1 `docs/JUDGING.md` — closes a T2 requirement *and* a +5 bonus
+### 0.1 `JUDGING.md` — closes a T2 requirement *and* a +5 bonus
 
 T2 requires cross-judge normalization "with your method documented and defended". The implementation already
 exists (`results.compute`, per-judge z-score, `useNormalization` flag) but nothing defends it.
@@ -58,7 +58,7 @@ A runnable script that proves the method on the fixture event rather than assert
 
 The point is defensibility. A judge who asks "show me" gets a file, not a claim.
 
-### 0.3 `docs/ARCHITECTURE.md`
+### 0.3 `ARCHITECTURE.md`
 
 - Monorepo shape: `packages/{api,auth,db,config,ui}` + `apps/{server,web}`
 - oRPC contract-first flow: `packages/api` → `apps/server` router → `apps/web` client
@@ -67,7 +67,7 @@ The point is defensibility. A judge who asks "show me" gets a file, not a claim.
   `apps/server/src/composition/env-bootstrap.ts` to resolve env without the varlock CLI
 - Data flow for a submission and for a score
 
-### 0.4 `docs/DATA-MODEL.md`
+### 0.4 `DATA-MODEL.md`
 
 Tables and their invariants, from `packages/db/src/schema`:
 
@@ -139,13 +139,13 @@ The stack must be running: `docker compose up -d`.
 
 - [x] T1 team-invite flow verified as real (or fixed)
   — `apps/web/src/routes/(dashboard)/dashboard/teams/index.tsx` now has full create → share → accept flow
-- [x] `docs/JUDGING.md` written and defends the z-score method
+- [x] `JUDGING.md` written and defends the z-score method
   — covers method, why z-score, failure mode, limits, worked example with real fixture numbers
 - [x] `docs/dogfood/normalization-proof.txt` generated from fixtures and committed
   — 30 judges · 40 projects · 122 scores; ρ = 0.856 ✓; inversion rate 15.1% ✓
-- [x] `docs/ARCHITECTURE.md` written
+- [x] `ARCHITECTURE.md` written
   — monorepo, oRPC contract flow, two entrypoints, env-bootstrap, submission + score data flows
-- [x] `docs/DATA-MODEL.md` written
+- [x] `DATA-MODEL.md` written
   — all 13 tables, anti-abuse constraints, deadline enforcement, role isolation
 - [x] Organizer rubric editor functional, weight-sum validated
   — `apps/web/src/routes/(organizer)/organizer/events/$eventId/rubric/index.tsx`; live progress bar; blocks save when weights ≠ 100; weighted/unweighted toggle

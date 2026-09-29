@@ -7,6 +7,20 @@ event.
 
 Built to run locally with a single command and no external services.
 
+## Documentation
+
+| Document | What it answers |
+| --- | --- |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | The shape of the system, and why it is shaped that way |
+| [`DATA-MODEL.md`](DATA-MODEL.md) | The schema, and how data gets in and out of the platform |
+| [`JUDGING.md`](JUDGING.md) | Assignment strategy, scoring maths, and the normalization method, defended |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | What can be gamed, and the controls for it |
+| [`docs/openapi.json`](docs/openapi.json) | The published API, generated from the contract |
+
+`JUDGING.md` is the one to read if you only read one: it covers how judges are
+assigned, how harshness is normalized away, and what happens when a judge marks
+everything a 3.
+
 ## Quick start
 
 ```bash
@@ -50,7 +64,7 @@ regenerating fails the suite rather than shipping a stale document.
 
 Each operation declares a REST-style method and path, which is what the spec publishes.
 Those paths are the intended REST shape; the runtime serves RPC framing. See
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why.
+[`ARCHITECTURE.md`](ARCHITECTURE.md) for why.
 
 ### The secret, and why it lives in one file
 
@@ -131,7 +145,46 @@ same value in `PORT` for the server. The `fixtures.json` symlink at the repo
 root points at `docs/dogfood/fixtures.json` so the checker finds the fixture
 without a `--fixtures` flag.
 
+## Signing in
+
+The seed creates these accounts, all with the password `rave2026demo`:
+
+| Role | Email | What they can reach |
+| --- | --- | --- |
+| Organizer | `organizer@rave.local` | Everything: events, judging console, results, data, settings |
+| Judge | `tomas.varga@example.org` | Only their own assignments and scores |
+| Judge | `wei.lindqvist@example.org` | Only their own assignments and scores |
+| Participant | `priya1@example.org` | Teams, their own submission, and the public gallery |
+
+There is no admin account, so `/organizer/admin` correctly refuses every seeded
+user. That page needs a real `admin` role, which only `admin.setRole` can grant.
+
+Sign in as the two judges in two different browsers to see the isolation
+guarantee hold: neither can see the other's scores or assignments.
+
+## What it does not do yet
+
+Stated plainly, because a gap you can see costs less than one you discover.
+
+- **Pairwise judging is not implemented.** Tiers call for it as a bonus mode
+  showing two projects and recovering a ranking with a Bradley-Terry style
+  estimator. We took the other three bonuses instead; see `docs/tiers.md`.
+- **No webhooks.** The T4 stretch item is absent.
+- **No verifiable judge records or certificates.** Results are stored and
+  auditable, but there is no signed, exportable credential.
+- **No embeddable gallery.** The gallery is a page, not a widget.
+- **Per-project coverage is not reported.** The API returns no per-project
+  assignment counts, so the judging console shows per-judge progress instead and
+  says so.
+- **Team rosters show user ids.** `teams.get` returns no names or emails.
+- **The graded gallery is a separate surface.** The acceptance checker reads the
+  server-rendered portal at `/gallery`, not the SPA route, so a break in the
+  client-side gallery would not fail the suite.
+
 ## Architecture
+
+The full write-up is in [`ARCHITECTURE.md`](ARCHITECTURE.md) — the shape of the
+system and the reasoning behind it.
 
 A Bun monorepo managed with Turborepo.
 
