@@ -1,6 +1,6 @@
 import { Button } from "@rave/ui/components/button";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -17,11 +17,7 @@ const selectSubmitState = (state: {
   isSubmitting: state.isSubmitting,
 });
 
-export default function SignInForm({
-  onSwitchToSignUp,
-}: {
-  onSwitchToSignUp: () => void;
-}) {
+export default function SignInForm() {
   const navigate = useNavigate({
     from: "/",
   });
@@ -94,6 +90,7 @@ export default function SignInForm({
                 onChange: field.handleChange,
                 value: field.state.value,
               }}
+              inputProps={{ autoComplete: "email", autoFocus: true }}
               label="Email"
               type="email"
             />
@@ -110,6 +107,7 @@ export default function SignInForm({
                 onChange: field.handleChange,
                 value: field.state.value,
               }}
+              inputProps={{ autoComplete: "current-password" }}
               label="Password"
               type="password"
             />
@@ -131,13 +129,12 @@ export default function SignInForm({
 
       <p className="mt-6 text-center text-muted-foreground text-sm">
         Don't have an account?{" "}
-        <Button
-          className="text-primary hover:text-primary/80"
-          onClick={onSwitchToSignUp}
-          variant="link"
+        <Link
+          className="font-medium text-primary hover:text-primary/80 hover:underline"
+          to="/signup"
         >
-          Sign Up
-        </Button>
+          Sign up
+        </Link>
       </p>
     </div>
   );

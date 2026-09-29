@@ -2,7 +2,7 @@ import { Input } from "@rave/ui/components/input";
 import { Label } from "@rave/ui/components/label";
 import { Textarea } from "@rave/ui/components/textarea";
 import type { AnyFormApi } from "@tanstack/react-form";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, InputHTMLAttributes, ReactNode } from "react";
 import { useCallback } from "react";
 
 export interface FormFieldApi {
@@ -58,6 +58,12 @@ interface FormFieldProps {
   children?: ReactNode;
   controls: FormFieldApi;
   description?: string;
+  /**
+   * Escape hatch for attributes the field does not model. `autoComplete` is
+   * not cosmetic: without it browsers decline to offer saved credentials and
+   * many password managers refuse to fill the form at all.
+   */
+  inputProps?: InputHTMLAttributes<HTMLInputElement>;
   label: string;
   type?: string;
 }
@@ -67,6 +73,7 @@ export function FormField({
   children,
   controls,
   description,
+  inputProps,
   label,
   type,
 }: FormFieldProps) {
@@ -112,6 +119,7 @@ export function FormField({
             onChange={handleChange}
             type={type}
             value={controls.value}
+            {...inputProps}
           />
         ))}
 

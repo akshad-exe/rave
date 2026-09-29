@@ -1,6 +1,6 @@
 import { Button } from "@rave/ui/components/button";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import type { FormEvent } from "react";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -17,11 +17,7 @@ const selectSubmitState = (state: {
   isSubmitting: state.isSubmitting,
 });
 
-export default function SignUpForm({
-  onSwitchToSignIn,
-}: {
-  onSwitchToSignIn: () => void;
-}) {
+export default function SignUpForm() {
   const navigate = useNavigate({
     from: "/",
   });
@@ -97,6 +93,7 @@ export default function SignUpForm({
                 onChange: field.handleChange,
                 value: field.state.value,
               }}
+              inputProps={{ autoComplete: "name" }}
               label="Name"
             />
           )}
@@ -112,6 +109,7 @@ export default function SignUpForm({
                 onChange: field.handleChange,
                 value: field.state.value,
               }}
+              inputProps={{ autoComplete: "email" }}
               label="Email"
               type="email"
             />
@@ -128,6 +126,7 @@ export default function SignUpForm({
                 onChange: field.handleChange,
                 value: field.state.value,
               }}
+              inputProps={{ autoComplete: "new-password", minLength: 8 }}
               label="Password"
               type="password"
             />
@@ -149,13 +148,12 @@ export default function SignUpForm({
 
       <p className="mt-6 text-center text-muted-foreground text-sm">
         Already have an account?{" "}
-        <Button
-          className="text-primary hover:text-primary/80"
-          onClick={onSwitchToSignIn}
-          variant="link"
+        <Link
+          className="font-medium text-primary hover:text-primary/80 hover:underline"
+          to="/login"
         >
-          Sign In
-        </Button>
+          Sign in
+        </Link>
       </p>
     </div>
   );
