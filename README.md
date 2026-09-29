@@ -10,10 +10,15 @@ Built to run locally with a single command and no external services.
 ## Quick start
 
 ```bash
+bun run setup        # creates apps/server/.env with a generated secret
 docker compose up
 ```
 
-That builds the images, starts PostgreSQL, applies migrations, and serves:
+`setup` is idempotent and never overwrites an existing `.env`, so re-running it
+is safe and will not invalidate sessions that are already signed.
+
+`docker compose up` builds the images, starts PostgreSQL, applies migrations, and
+serves:
 
 | Service         | URL                     |
 | --------------- | ----------------------- |
@@ -25,9 +30,25 @@ No cloud account, hosted database, authentication provider, or external API is
 required. Migrations run automatically on server boot, so the stack is usable
 against a brand-new volume.
 
-> The first boot generates a development `BETTER_AUTH_SECRET`. For anything
-> beyond local use, set your own via `apps/server/.env` or the
-> `BETTER_AUTH_SECRET` environment variable.
+### The secret, and why it lives in one file
+
+`bun run setup` writes a random 48-byte `BETTER_AUTH_SECRET` into
+`apps/server/.env`, and that file is the **only** place the secret is defined.
+Compose passes it to the server through `env_file`, which is why the server block
+deliberately does **not** also set `BETTER_AUTH_SECRET` under `environment:`.
+In Compose, `environment` wins over `env_file`; setting it in both once meant the
+host minted session cookies with one secret while the container verified them
+with another, so every authenticated request returned 401 — and because a 401 is
+also a deny, the isolation checks still reported a pass. If you add a secret to
+either place, delete it from the other.
+
+The seeded `POSTGRES_PASSWORD` default (`ravepass`) is shared by
+`docker-compose.yml` and `apps/server/.env.example`. Change one and you must
+change the other, or a fresh volume is created with a password the host does not
+expect.
+
+For anything beyond local use, replace the generated secret and serve behind
+TLS.
 
 ## Running locally without Docker
 

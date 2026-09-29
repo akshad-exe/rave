@@ -43,8 +43,12 @@ services:
       NODE_ENV: production
       CORS_ORIGIN: http://localhost:3001
       BETTER_AUTH_URL: http://localhost:3000
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-rave-dev-secret-not-for-production-use-0123456789}
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-password}@postgres:5432/rave
+      # BETTER_AUTH_SECRET is deliberately NOT set here. In Compose, `environment`
+      # wins over `env_file`, so setting it here silently overrode the secret in
+      # apps/server/.env: the host minted session cookies with one value and the
+      # container verified them against another, so every authenticated request
+      # 401'd while the checker still reported a pass.
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-ravepass}@postgres:5432/rave
       MIGRATIONS_FOLDER: /app/packages/db/src/migrations
     healthcheck:
       # curl, not `node -e`: the runtime image ships the compiled binary and no
@@ -65,7 +69,7 @@ services:
     environment:
       POSTGRES_DB: rave
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ravepass}
     ports:
       - "5432:5432"
     volumes:
