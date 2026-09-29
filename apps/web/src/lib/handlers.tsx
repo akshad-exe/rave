@@ -66,3 +66,14 @@ export function changePage(
     setPage((current) => Math.max(1, current + delta));
   };
 }
+
+/**
+ * Reset a nullable piece of dialog state. Generic over the element so one
+ * factory serves `setPendingDelete(null)`, `setPendingRemove(null)` and the
+ * rest, rather than a `clearX` closure per dialog.
+ */
+export function handleClear<T>(setter: (value: T) => void) {
+  return () => {
+    setter(null as T);
+  };
+}
