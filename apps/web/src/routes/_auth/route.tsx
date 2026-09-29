@@ -1,18 +1,16 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { authClient } from "@/lib/auth-client";
-
+/**
+ * Pathless group holding the signed-out pages.
+ *
+ * Deliberately has no session guard. Its children are /login and /signup, so
+ * requiring a session here would redirect /login to /login forever. It exists
+ * only to centre and constrain the auth forms, which is what was missing when
+ * they were top-level routes: the inputs stretched the full viewport width
+ * because no wrapper ever applied a max-width.
+ */
 export const Route = createFileRoute("/_auth")({
   component: AuthLayout,
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
-    if (!session.data) {
-      throw redirect({
-        to: "/login",
-      });
-    }
-    return { session };
-  },
 });
 
 function AuthLayout() {

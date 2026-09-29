@@ -36,7 +36,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { FormField, fieldControls } from "@/components/form-field";
-import { authClient } from "@/lib/auth-client";
+import { sessionQueryOptions } from "@/lib/session";
 import { client, orpc } from "@/utils/orpc";
 
 /** Slug rules live at module scope so the regex is not rebuilt on every render. */
@@ -116,9 +116,11 @@ const eventFormSchema = z.object({
 
 export const Route = createFileRoute("/(organizer)/organizer/events/new/")({
   component: CreateEventComponent,
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
-    if (!session.data) {
+  beforeLoad: async ({ context }) => {
+    const user = await context.queryClient.ensureQueryData(
+      sessionQueryOptions()
+    );
+    if (!user) {
       throw redirect({ to: "/login" });
     }
     const me = await client.me();

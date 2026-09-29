@@ -9,14 +9,22 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   SettingsIcon,
+  ShieldIcon,
   XIcon,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
+/**
+ * Top-level organizer surfaces only. The per-event pages (judging, results, data
+ * and settings) each need an eventId, so they live in the event row menu rather
+ * than here — a sidebar of links that cannot be built without choosing an event
+ * is worse than no entry at all.
+ */
 const navigation = [
   { icon: LayoutDashboardIcon, label: "Overview", to: "/organizer" },
   { icon: CalendarIcon, label: "Events", to: "/organizer/events" },
+  { icon: ShieldIcon, label: "Admin", to: "/organizer/admin" },
 ] as const;
 
 export function OrganizerSidebar() {

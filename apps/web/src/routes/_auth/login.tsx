@@ -9,7 +9,7 @@ import SignInForm from "@/components/sign-in-form";
  * own URL so the browser back button, a shared link and a password manager's
  * saved-credentials list all address the right one.
  */
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute("/_auth/login")({
   component: RouteComponent,
 });
 

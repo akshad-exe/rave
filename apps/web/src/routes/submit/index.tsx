@@ -25,7 +25,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 import { FormField, fieldControls } from "@/components/form-field";
-import { authClient } from "@/lib/auth-client";
+import { sessionQueryOptions } from "@/lib/session";
 import { orpc } from "@/utils/orpc";
 
 /** Kept at module scope so the component body stays within the complexity budget. */
@@ -69,12 +69,14 @@ function getStepCircleClass(index: number, activeStep: number): string {
 
 export const Route = createFileRoute("/submit/")({
   component: SubmitComponent,
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
-    if (!session.data) {
+  beforeLoad: async ({ context }) => {
+    const user = await context.queryClient.ensureQueryData(
+      sessionQueryOptions()
+    );
+    if (!user) {
       throw redirect({ to: "/login" });
     }
-    return { session: session.data };
+    return { session: { user } };
   },
 });
 

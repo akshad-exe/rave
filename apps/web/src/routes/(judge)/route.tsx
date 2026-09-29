@@ -1,20 +1,25 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { JudgeSidebar } from "@/components/judge-sidebar";
-import { authClient } from "@/lib/auth-client";
+import { sessionQueryOptions } from "@/lib/session";
 import { client } from "@/utils/orpc";
 
 export const Route = createFileRoute("/(judge)")({
   component: JudgeLayout,
-  beforeLoad: async () => {
-    const session = await authClient.getSession();
-    if (!session.data) {
+  beforeLoad: async ({ context }) => {
+    // Cached across navigations. A bare getSession() here re-fetched on every
+    // sidebar click, and a slow or failed response read as "signed out", which
+    // bounced people to /login mid-session.
+    const user = await context.queryClient.ensureQueryData(
+      sessionQueryOptions()
+    );
+    if (!user) {
       throw redirect({ to: "/login" });
     }
     const me = await client.me();
     if (me.role !== "judge" && me.role !== "admin") {
       throw redirect({ to: "/dashboard" });
     }
-    return { session: session.data };
+    return { session: { user } };
   },
 });
 
