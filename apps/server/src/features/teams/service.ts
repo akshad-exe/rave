@@ -3,7 +3,7 @@ import type { TeamsService } from "@rave/api/contract";
 import { badRequest, conflict, gone, notFound } from "@rave/api/errors";
 import { generateId, generateToken } from "@rave/api/id";
 import { team, teamInvitation, teamMember } from "@rave/db";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import { requireRow, requireUserId } from "../../lib/assert";
 import {
@@ -235,6 +235,17 @@ export const teamsService: TeamsService = {
       .where(eq(team.eventId, input.eventId));
   },
 
+  // Revoke invitation (owner only)
+  async listInvitations(ctx, input) {
+    await assertTeamOwner(ctx, input.teamId);
+
+    return ctx.db
+      .select()
+      .from(teamInvitation)
+      .where(eq(teamInvitation.teamId, input.teamId))
+      .orderBy(desc(teamInvitation.createdAt));
+  },
+
   // My team for an event
   async myTeam(ctx, input) {
     const userId = requireUserId(ctx);
@@ -294,7 +305,6 @@ export const teamsService: TeamsService = {
     return { ok: true };
   },
 
-  // Revoke invitation (owner only)
   async revokeInvitation(ctx, input) {
     const rows = await ctx.db
       .select()

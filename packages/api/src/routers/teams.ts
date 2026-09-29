@@ -89,6 +89,20 @@ export const teamsRouter = {
       context.services.teams.listByEvent(context, input)
     ),
 
+  // Revoke invitation (owner only)
+  // Team owner: invitations this team has issued, so a leaked link can be found
+  listInvitations: protectedProcedure
+    .route({
+      method: "GET",
+      path: "/teams/{teamId}/invitations",
+      summary: "List invitations issued by this team",
+      tags: ["Teams"],
+    })
+    .input(teamIdInput)
+    .handler(({ context, input }) =>
+      context.services.teams.listInvitations(context, input)
+    ),
+
   // My team for an event
   myTeam: protectedProcedure
     .route({
@@ -115,7 +129,6 @@ export const teamsRouter = {
       context.services.teams.removeMember(context, input)
     ),
 
-  // Revoke invitation (owner only)
   revokeInvitation: protectedProcedure
     .route({
       method: "POST",

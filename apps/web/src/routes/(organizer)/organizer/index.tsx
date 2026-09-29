@@ -95,7 +95,7 @@ function OrganizerDashboardComponent() {
         <h2 className="mb-4 font-display font-semibold text-foreground text-xl">
           Quick Actions
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <ActionCard
             description="Set up a new hackathon"
             href="/organizer/events/new"
@@ -113,6 +113,12 @@ function OrganizerDashboardComponent() {
             href="/organizer/events"
             icon={UsersIcon}
             title="Your Events"
+          />
+          <ActionCard
+            description="Roles and the platform audit trail"
+            href="/organizer/admin"
+            icon={ShieldIcon}
+            title="Admin"
           />
         </div>
       </section>

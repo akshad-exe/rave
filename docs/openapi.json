@@ -3179,6 +3179,40 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "teams.listInvitations",
+        "summary": "List invitations issued by this team",
+        "tags": [
+          "Teams"
+        ],
+        "parameters": [
+          {
+            "name": "teamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {},
+                    {
+                      "not": {}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/teams/{teamId}": {

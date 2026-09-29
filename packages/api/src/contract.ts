@@ -10,6 +10,7 @@ import type {
   score,
   submission,
   team,
+  teamInvitation,
   track,
 } from "@rave/db";
 import type { z } from "zod";
@@ -31,6 +32,7 @@ type EventRow = typeof event.$inferSelect;
 type TrackRow = typeof track.$inferSelect;
 type PrizeRow = typeof prize.$inferSelect;
 type TeamRow = typeof team.$inferSelect;
+type TeamInvitationRow = typeof teamInvitation.$inferSelect;
 type SubmissionRow = typeof submission.$inferSelect;
 type RubricRow = typeof rubric.$inferSelect;
 type RubricCriterionRow = typeof rubricCriterion.$inferSelect;
@@ -239,6 +241,16 @@ export interface TeamsService {
   ) => Promise<
     Pick<TeamRow, "description" | "eventId" | "id" | "name" | "ownerId">[]
   >;
+  /**
+   * Team owner: the invitations this team has issued. `revokeInvitation` takes
+   * an invitationId and nothing else in the API returns one, so without this a
+   * leaked invite link cannot be revoked from the product at all — the
+   * countermeasure the threat model describes had no way to be reached.
+   */
+  listInvitations: (
+    ctx: ServiceContext,
+    input: z.infer<typeof teamSchemas.teamIdInput>
+  ) => Promise<TeamInvitationRow[]>;
   myTeam: (
     ctx: ServiceContext,
     input: z.infer<typeof teamSchemas.eventIdInput>

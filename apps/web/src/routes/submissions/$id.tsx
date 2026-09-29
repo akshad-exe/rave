@@ -1,4 +1,14 @@
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@rave/ui/components/alert-dialog";
+import {
   Avatar,
   AvatarFallback,
   AvatarImage,
@@ -241,6 +251,16 @@ function SubmissionDetailComponent() {
   const handleDeleteComment = useCallback((commentId: string) => {
     setPendingDeleteId(commentId);
   }, []);
+
+  const handleDisqualified = useCallback(() => {
+    queryClient
+      .invalidateQueries(
+        orpc.submissions.get.queryOptions({
+          input: { submissionId: id },
+        })
+      )
+      .catch(() => undefined);
+  }, [id, queryClient]);
 
   // Early returns live after every hook, so the hook count stays constant
   // across renders regardless of what the query returns.
@@ -541,6 +561,13 @@ function SubmissionDetailComponent() {
             </div>
           </section>
         ) : null}
+
+        <DisqualifyAction
+          disabled={isDraft}
+          onDone={handleDisqualified}
+          submissionId={submission.id}
+          submissionName={submission.name}
+        />
 
         <OwnerActions
           draft={draft}
@@ -979,4 +1006,115 @@ function SubmissionDetailSkeleton() {
       </div>
     </div>
   );
+}
+
+// ─── Disqualify (organizer) ───────────────────────────────────────────────────
+
+function DisqualifyAction({
+  submissionId,
+  submissionName,
+  disabled,
+  onDone,
+}: {
+  disabled: boolean;
+  onDone: () => void;
+  submissionId: string;
+  submissionName: string;
+}) {
+  const meQuery = useQuery(orpc.me.queryOptions());
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const disqualify = useMutation(orpc.submissions.disqualify.mutationOptions());
+
+  // The server enforces this too; hiding it just avoids offering an action that
+  // would fail for a participant.
+  const handleReasonChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setReason(e.target.value);
+    },
+    []
+  );
+
+  const handleConfirm = useCallback(async () => {
+    try {
+      await disqualify.mutateAsync({
+        reason: reason.trim() || undefined,
+        submissionId,
+      });
+      toast.success("Submission disqualified");
+      setOpen(false);
+      setReason("");
+      onDone();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not disqualify");
+    }
+  }, [disqualify, onDone, reason, submissionId]);
+
+  const role = meQuery.data?.role;
+  // The server enforces both of these too; hiding them just avoids offering an
+  // action that is guaranteed to fail.
+  if (disabled || (role !== "organizer" && role !== "admin")) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="flex justify-end">
+        <Button onClick={openDisqualify(setOpen)} size="sm" variant="ghost">
+          Disqualify project
+        </Button>
+      </div>
+      <AlertDialog onOpenChange={handleAlertDialogChange(setOpen)} open={open}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disqualify “{submissionName}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The project drops out of the gallery and the ballot. The decision
+              is recorded in the audit log, and the reason is shown to the team.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label className="block text-xs" htmlFor="disqualify-reason">
+              Reason (optional)
+            </Label>
+            <Textarea
+              id="disqualify-reason"
+              maxLength={500}
+              onChange={handleReasonChange}
+              placeholder="Rules violation, withdrawn entry…"
+              rows={3}
+              value={reason}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={fireDisqualify(handleConfirm)}>
+              {disqualify.isPending ? "Working…" : "Disqualify"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+function openDisqualify(setOpen: (v: boolean) => void) {
+  return () => {
+    setOpen(true);
+  };
+}
+
+function handleAlertDialogChange(setOpen: (v: boolean) => void) {
+  return (next: boolean) => {
+    if (!next) {
+      setOpen(false);
+    }
+  };
+}
+
+function fireDisqualify(fn: () => Promise<void>) {
+  return () => {
+    fn();
+  };
 }

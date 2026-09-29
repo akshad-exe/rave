@@ -160,8 +160,8 @@ function DashboardComponent() {
             title="Join Event"
           />
           <ActionCard
-            description="Form a team for an event"
-            href="/dashboard/teams/new"
+            description="Form or join a team for an event"
+            href="/dashboard/teams"
             icon={UsersIcon}
             title="Create Team"
           />

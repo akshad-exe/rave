@@ -12,10 +12,6 @@ import {
 describe("Teams", () => {
   const app = getTestApp();
 
-  afterAll(async () => {
-    await closeTestApp();
-  });
-
   async function setupEvent() {
     const org = await registerUser(app);
     await setRole(org.id, "organizer");
@@ -315,3 +311,97 @@ describe("Teams", () => {
     expect(status).toBe(400); // owners cannot leave
   });
 });
+
+describe("Team invitations", () => {
+  const app = getTestApp();
+  async function setupTeam() {
+    const owner = await registerUser(app);
+    await setRole(owner.id, "organizer");
+    const ev = await createEvent(app, owner.cookie, { maxTeamSize: 3 });
+    // Teams can only be created once the event opens registration.
+    await rpcOk(
+      app,
+      "events.transition",
+      { eventId: ev.id, status: "registration" },
+      owner.cookie
+    );
+    const team = (await rpcOk(
+      app,
+      "teams.create",
+      { eventId: ev.id, name: "Invitee Test Team" },
+      owner.cookie
+    )) as { id: string };
+    return { ev, owner, team };
+  }
+
+  it("lists the invitations a team has issued", async () => {
+    const { owner, team } = await setupTeam();
+
+    await rpcOk(
+      app,
+      "teams.createInvitation",
+      { invitedEmail: "invitee@example.org", teamId: team.id },
+      owner.cookie
+    );
+
+    const invitations = (await rpcOk(
+      app,
+      "teams.listInvitations",
+      { teamId: team.id },
+      owner.cookie
+    )) as Array<{ id: string; status: string }>;
+
+    expect(invitations).toHaveLength(1);
+    expect(invitations[0]?.status).toBe("pending");
+  });
+
+  it("lets the owner revoke an invitation it listed", async () => {
+    const { owner, team } = await setupTeam();
+    await rpcOk(
+      app,
+      "teams.createInvitation",
+      { invitedEmail: "leaked@example.org", teamId: team.id },
+      owner.cookie
+    );
+
+    const [invitation] = (await rpcOk(
+      app,
+      "teams.listInvitations",
+      { teamId: team.id },
+      owner.cookie
+    )) as Array<{ id: string }>;
+
+    await rpcOk(
+      app,
+      "teams.revokeInvitation",
+      { invitationId: invitation?.id ?? "" },
+      owner.cookie
+    );
+
+    const after = (await rpcOk(
+      app,
+      "teams.listInvitations",
+      { teamId: team.id },
+      owner.cookie
+    )) as Array<{ id: string; status: string }>;
+    const revoked = after.find((i) => i.id === invitation?.id);
+    expect(revoked?.status).toBe("revoked");
+  });
+
+  it("rejects a non-owner listing invitations", async () => {
+    const { team } = await setupTeam();
+    const outsider = await registerUser(app);
+
+    const { status } = await rpc(
+      app,
+      "teams.listInvitations",
+      { teamId: team.id },
+      outsider.cookie
+    );
+    expect(status).toBe(403);
+  });
+});
+
+// One teardown for the file: getTestApp caches a singleton, so a per-describe
+// close would hand the second describe an app that is already shut down.
+afterAll(closeTestApp);
